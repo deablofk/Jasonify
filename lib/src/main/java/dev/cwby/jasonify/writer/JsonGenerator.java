@@ -86,6 +86,12 @@ public class JsonGenerator {
     return this;
   }
 
+  public JsonGenerator writeRaw(String raw) throws AppendJsonException {
+    handleComma();
+    append(raw);
+    return this;
+  }
+
   public JsonGenerator writeBase64String(byte[] bytes) throws AppendJsonException {
     return writeString(Base64.getEncoder().encodeToString(bytes));
   }

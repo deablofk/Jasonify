@@ -10,7 +10,6 @@ import dev.cwby.jasonify.writer.JsonGenerator;
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.List;
 
 public class CodeGenerator {
@@ -116,7 +115,7 @@ public class CodeGenerator {
       } else {
         if (field.isAnnotatedObject()) {
           builder.addStatement(
-              "$L.writeString($T.toJson($L.$L))",
+              "$L.writeRaw($T.toJson($L.$L))",
               jg,
               SerializerManager.class,
               objAlias,
@@ -127,7 +126,7 @@ public class CodeGenerator {
       }
     }
     builder.addStatement("$L.writeEndObject()", jg);
-    builder.add("$<} catch (Exception e) {\n$>e.printStackTrace();$<}\n");
+    builder.add("$<} catch (Exception e) {\n$>e.printStackTrace();$<\n}\n");
     return builder.build();
   }
 }
