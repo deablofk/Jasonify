@@ -44,6 +44,7 @@ public class JsonGenerator {
     append("}");
     depth--;
     isFirst = depth > 0;
+    handleComma();
     return this;
   }
 
