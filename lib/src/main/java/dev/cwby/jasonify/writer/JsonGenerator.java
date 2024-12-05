@@ -3,28 +3,24 @@ package dev.cwby.jasonify.writer;
 import dev.cwby.jasonify.exception.AppendJsonException;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.Base64;
-import java.util.Deque;
 
 public class JsonGenerator {
   private final Appendable appendable;
-  private final Deque<Boolean> isFirstStack;
   private static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder();
+  private int depth = 0;
+  private boolean isFirst = true;
 
   public JsonGenerator(final Appendable appendable) {
     this.appendable = appendable;
-    this.isFirstStack = new ArrayDeque<>();
-    this.isFirstStack.push(true);
   }
 
   private boolean isFirst() {
-    return Boolean.TRUE.equals(isFirstStack.peek());
+    return isFirst;
   }
 
   private void setFirst() {
-    isFirstStack.pop();
-    isFirstStack.push(false);
+    isFirst = false;
   }
 
   public JsonGenerator append(String str) throws AppendJsonException {
@@ -39,33 +35,36 @@ public class JsonGenerator {
   public JsonGenerator writeStartObject() throws AppendJsonException {
     handleComma();
     append("{");
-    isFirstStack.push(true);
+    depth++;
+    isFirst = true;
     return this;
   }
 
   public JsonGenerator writeEndObject() throws AppendJsonException {
     append("}");
-    isFirstStack.pop();
+    depth--;
+    isFirst = depth > 0;
     return this;
   }
 
   public JsonGenerator writeStartArray() throws AppendJsonException {
     handleComma();
     append("[");
-    isFirstStack.push(true);
+    depth++;
+    isFirst = true;
     return this;
   }
 
   public JsonGenerator writeEndArray() throws AppendJsonException {
     append("]");
-    isFirstStack.pop();
     return this;
   }
 
   public JsonGenerator writeField(String fieldName) throws AppendJsonException {
     handleComma();
     append("\"").append(fieldName).append("\":");
-    isFirstStack.push(true);
+    depth++;
+    isFirst = true;
     return this;
   }
 
