@@ -8,14 +8,14 @@ public class JsonFieldMetadata {
   private final String type;
   private final String name;
   private final boolean array;
-  private final boolean customObject;
+  private final boolean annotatedObject;
   private final boolean hasGetter;
 
-  public JsonFieldMetadata(VariableElement element) {
+  public JsonFieldMetadata(VariableElement element, boolean isAnnotatedObject) {
     this.type = element.asType().toString();
     this.name = String.valueOf(element.getSimpleName());
     this.array = element.asType().getKind() == TypeKind.ARRAY;
-    this.customObject = element.asType().getKind().isPrimitive();
+    this.annotatedObject = isAnnotatedObject;
     this.hasGetter = JsonClassAnalyzer.hasPublicGetter(element);
   }
 
@@ -31,8 +31,8 @@ public class JsonFieldMetadata {
     return array;
   }
 
-  public boolean isCustomObject() {
-    return customObject;
+  public boolean isAnnotatedObject() {
+    return annotatedObject;
   }
 
   public boolean hasGetter() {
@@ -45,9 +45,10 @@ public class JsonFieldMetadata {
 
   public String getJGString() {
     return switch (type.replace("[]", "")) {
+      case "java.lang.Character", "java.lang.String" -> "writeString";
+      case "byte" -> "writeBase64String";
       case "boolean" -> "writeBoolean";
-      case "int" -> "writeNumber";
-      case "java.lang.String" -> "writeString";
+      case "int", "double" -> "writeNumber";
       default -> throw new IllegalStateException("Unexpected value: " + type);
     };
   }

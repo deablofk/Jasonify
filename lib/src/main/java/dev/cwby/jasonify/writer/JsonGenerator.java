@@ -4,6 +4,7 @@ import dev.cwby.jasonify.exception.AppendJsonException;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.Base64;
 import java.util.Deque;
 
 public class JsonGenerator {
@@ -83,6 +84,10 @@ public class JsonGenerator {
     handleComma();
     append(value.toString());
     return this;
+  }
+
+  public JsonGenerator writeBase64String(byte[] bytes) throws AppendJsonException {
+    return writeString(Base64.getEncoder().encodeToString(bytes));
   }
 
   private void handleComma() throws AppendJsonException {

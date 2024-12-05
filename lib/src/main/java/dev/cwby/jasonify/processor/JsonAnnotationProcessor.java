@@ -13,6 +13,7 @@ import javax.lang.model.element.TypeElement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @AutoService(Processor.class)
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
@@ -25,12 +26,20 @@ public class JsonAnnotationProcessor extends AbstractProcessor {
 
   @Override
   public boolean process(Set<? extends TypeElement> set, RoundEnvironment re) {
-    jsonClassMetadataList.addAll(
+    Set<TypeElement> classesELements =
         re.getElementsAnnotatedWith(Json.class).stream()
             .filter(el -> el.getKind() == ElementKind.CLASS)
-            .map(classEl -> classAnalyzer.processClass((TypeElement) classEl))
-            .filter(metadata -> !metadata.fields().isEmpty())
-            .toList());
+            .map(TypeElement.class::cast)
+            .collect(Collectors.toSet());
+
+    Set<String> annotatedClasses =
+        classesELements.stream()
+            .map(x -> x.getQualifiedName().toString())
+            .collect(Collectors.toSet());
+
+    for (TypeElement typeElement : classesELements) {
+      jsonClassMetadataList.add(classAnalyzer.processClass(typeElement, annotatedClasses));
+    }
 
     if (re.processingOver()) {
       codeGenerator.write(jsonClassMetadataList, processingEnv.getFiler());
