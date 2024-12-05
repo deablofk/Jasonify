@@ -83,7 +83,7 @@ public class CodeGenerator {
         JsonGenerator.class,
         generatorAlias,
         JsonGenerator.class,
-        StringWriter.class);
+        StringBuilder.class);
 
     builder.addCode(jsonGeneratorCode(fields, generatorAlias, obj));
 
