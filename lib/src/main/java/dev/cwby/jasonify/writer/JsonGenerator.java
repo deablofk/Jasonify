@@ -10,6 +10,7 @@ import java.util.Deque;
 public class JsonGenerator {
   private final Appendable appendable;
   private final Deque<Boolean> isFirstStack;
+  private static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder();
 
   public JsonGenerator(final Appendable appendable) {
     this.appendable = appendable;
@@ -93,7 +94,7 @@ public class JsonGenerator {
   }
 
   public JsonGenerator writeBase64String(byte[] bytes) throws AppendJsonException {
-    return writeString(Base64.getEncoder().encodeToString(bytes));
+    return writeString(BASE64_ENCODER.encodeToString(bytes));
   }
 
   private void handleComma() throws AppendJsonException {
