@@ -18,8 +18,7 @@ public class SerializerManager {
     } catch (ClassNotFoundException e) {
       try {
         throw new AOTMapperInitializerException("cant initialize the class: " + e.getMessage());
-      } catch (AOTMapperInitializerException ex) {
-        throw new RuntimeException(ex);
+      } catch (AOTMapperInitializerException ignored) {
       }
     }
   }
