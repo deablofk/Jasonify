@@ -95,37 +95,53 @@ public class CodeGenerator {
     builder.add("try {\n$>");
     builder.addStatement("$L.writeStartObject()", jg);
     for (JsonFieldMetadata field : fields) {
-      builder.addStatement("$L.writeField($S)", jg, field.getName());
-      if (field.hasGetter()) {
-        if (field.isArray()) {
-          builder.addStatement("$L.writeStartArray()", jg);
-
-          String type = field.getType().replace("[]", "");
-          builder.add("if ($L != null) {\n$>", objAlias);
-          builder.add("for($L v : $L.$L()) {$>\n", type, objAlias, field.getterMethod());
-          builder.addStatement("$L.$L(v)", jg, field.getJGString());
-          builder.add("$<}\n$<}\n");
-
-          builder.addStatement("$L.writeEndArray()", jg);
-        } else {
-          builder.addStatement(
-              "$L.$L($L.$L())", jg, field.getJGString(), objAlias, field.getterMethod());
-        }
-      } else {
-        if (field.isAnnotatedObject()) {
-          builder.addStatement(
-              "$L.writeRaw($T.toJson($L.$L))",
-              jg,
-              SerializerManager.class,
-              objAlias,
-              field.getName());
-        } else {
-          builder.addStatement("$L.$L($L.$L)", jg, field.getJGString(), objAlias, field.getName());
-        }
-      }
+      addFieldSerializationCode(builder, field, jg, objAlias);
     }
     builder.addStatement("$L.writeEndObject()", jg);
     builder.add("$<} catch (Exception e) {\n$>e.printStackTrace();$<\n}\n");
     return builder.build();
+  }
+
+  private void addFieldSerializationCode(
+      CodeBlock.Builder builder,
+      JsonFieldMetadata field,
+      String generatorVar,
+      String instanceName) {
+
+    builder.addStatement("$L.writeField($S)", generatorVar, field.getName());
+    String callable = field.hasGetter() ? field.getterMethod() : field.getName();
+    boolean isByteArray = field.isArray() && field.getType().replace("[]", "").equals("byte");
+
+    if (field.isArray() && !isByteArray) {
+      builder.addStatement("$L.writeStartArray()", generatorVar);
+      String type = field.getType().replace("[]", "");
+      builder.add("if ($L != null) {\n$>", instanceName);
+      builder.add("for($L v : $L.$L) {$>\n", type, instanceName, callable);
+    }
+
+    if (field.isAnnotatedObject()) {
+      if (field.isArray() && !isByteArray) {
+        builder.addStatement("$L.writeRaw($T.toJson(v))", generatorVar, SerializerManager.class);
+      } else {
+        builder.addStatement(
+            "$L.writeRaw($T.toJson($L.$L))",
+            generatorVar,
+            SerializerManager.class,
+            instanceName,
+            field.getName());
+      }
+    } else {
+      if (field.isArray() && !isByteArray) {
+        builder.addStatement("$L.$L(v)", generatorVar, field.getJGString());
+      } else {
+        builder.addStatement(
+            "$L.$L($L.$L)", generatorVar, field.getJGString(), instanceName, callable);
+      }
+    }
+
+    if (field.isArray() && !isByteArray) {
+      builder.add("$<}\n$<}\n");
+      builder.addStatement("$L.writeEndArray()", generatorVar);
+    }
   }
 }

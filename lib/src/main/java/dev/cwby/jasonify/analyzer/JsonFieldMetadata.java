@@ -40,7 +40,23 @@ public class JsonFieldMetadata {
   }
 
   public String getterMethod() {
-    return JsonClassAnalyzer.getMethodNameByField(this.name);
+    return JsonClassAnalyzer.getMethodNameByField(this.name) + "()";
+  }
+
+  public int getArrayDepth() {
+    if (!array) {
+      return 0;
+    }
+
+    String target = "[]";
+    int count = 0;
+    int index = 0;
+    while ((index = type.indexOf(target, index)) != -1) {
+      count++;
+      index += target.length();
+    }
+
+    return count;
   }
 
   public String getJGString() {

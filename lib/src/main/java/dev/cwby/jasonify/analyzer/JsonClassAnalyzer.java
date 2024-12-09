@@ -46,7 +46,7 @@ public class JsonClassAnalyzer {
     for (VariableElement variableElement : variableElements) {
       boolean isAnnotated = false;
 
-      if (annotatedClasses.contains(variableElement.asType().toString())) {
+      if (annotatedClasses.contains(variableElement.asType().toString().replace("[]", ""))) {
         isAnnotated = true;
         System.out.println(variableElement.asType().toString());
       }
