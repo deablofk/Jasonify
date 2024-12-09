@@ -74,7 +74,6 @@ public class CodeGenerator {
             .addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
             .returns(String.class)
-            //            .addParameter(ClassName.get(JsonGenerator.class), "jg", Modifier.FINAL)
             .addParameter(className, obj, Modifier.FINAL);
 
     builder.addStatement(
