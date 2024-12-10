@@ -112,36 +112,116 @@ public class CodeGenerator {
     String callable = field.hasGetter() ? field.getterMethod() : field.getName();
     boolean isByteArray = field.isArray() && field.getType().replace("[]", "").equals("byte");
 
-    if (field.isArray() && !isByteArray) {
-      builder.addStatement("$L.writeStartArray()", generatorVar);
-      String type = field.getType().replace("[]", "");
-      builder.add("if ($L != null) {\n$>", instanceName);
-      builder.add("for($L v : $L.$L) {$>\n", type, instanceName, callable);
-    }
+    if (isByteArray) {
+      builder.add("$L.writeBase64String($L)", generatorVar, callable);
+    } else if (field.isArray()) {
+      int depth = field.getArrayDepth();
 
-    if (field.isAnnotatedObject()) {
-      if (field.isArray() && !isByteArray) {
-        builder.addStatement("$L.writeRaw($T.toJson(v))", generatorVar, SerializerManager.class);
+      if (field.isAnnotatedObject()) {
+        builder.add(
+            generateForLoop(
+                generatorVar,
+                instanceName,
+                callable,
+                field,
+                CodeBlock.builder()
+                    .addStatement(
+                        "$L.writeRaw($T.toJson(v$L))",
+                        generatorVar,
+                        SerializerManager.class,
+                        depth - 1)
+                    .build()));
       } else {
+
+        builder.add(
+            generateForLoop(
+                generatorVar,
+                instanceName,
+                callable,
+                field,
+                CodeBlock.builder()
+                    .addStatement("$L.$L(v$L)", generatorVar, field.getJGString(), depth - 1)
+                    .build()));
+      }
+    } else {
+      if (field.isAnnotatedObject()) {
         builder.addStatement(
             "$L.writeRaw($T.toJson($L.$L))",
             generatorVar,
             SerializerManager.class,
             instanceName,
             field.getName());
-      }
-    } else {
-      if (field.isArray() && !isByteArray) {
-        builder.addStatement("$L.$L(v)", generatorVar, field.getJGString());
       } else {
         builder.addStatement(
             "$L.$L($L.$L)", generatorVar, field.getJGString(), instanceName, callable);
       }
     }
+  }
 
-    if (field.isArray() && !isByteArray) {
-      builder.add("$<}\n$<}\n");
-      builder.addStatement("$L.writeEndArray()", generatorVar);
+  private CodeBlock generateForLoop(
+      String generatorVar,
+      String instanceName,
+      String callable,
+      JsonFieldMetadata field,
+      CodeBlock innerBlock) {
+    CodeBlock.Builder builder = CodeBlock.builder();
+    String type = field.getType().replace("[]", "");
+
+    builder.addStatement("$L.writeStartArray()", generatorVar);
+
+    int depth = field.getArrayDepth();
+    if (depth > 0) {
+      builder.add("if ($L != null) {\n$>", instanceName);
+      generateNestedLoops(
+          builder, type, instanceName, callable, innerBlock, depth, 0, generatorVar);
+      builder.add("$<}\n");
     }
+
+    builder.addStatement("$L.writeEndArray()", generatorVar);
+    return builder.build();
+  }
+
+  private void generateNestedLoops(
+      CodeBlock.Builder builder,
+      String type,
+      String instanceName,
+      String callable,
+      CodeBlock innerBlock,
+      int maxDepth,
+      int currentDepth,
+      String generatorVar) {
+    String loopVar = "v" + currentDepth;
+    StringBuilder arrayDelimiter = new StringBuilder();
+    arrayDelimiter.append("[]".repeat(Math.max(0, maxDepth - currentDepth - 1)));
+    if (currentDepth > 0) {
+      builder.add(
+          "for($L$L $L : v$L) {\n$>", type, arrayDelimiter.toString(), loopVar, currentDepth - 1);
+    } else {
+      builder.add(
+          "for($L$L $L : $L.$L) {\n$>",
+          type,
+          arrayDelimiter.toString(),
+          loopVar,
+          instanceName,
+          callable);
+    }
+
+    if (currentDepth + 1 < maxDepth) {
+      builder.addStatement("$L.writeStartArray()", generatorVar);
+      generateNestedLoops(
+          builder,
+          type,
+          instanceName,
+          callable,
+          innerBlock,
+          maxDepth,
+          currentDepth + 1,
+          generatorVar);
+      builder.addStatement("$L.writeEndArray()", generatorVar);
+    } else {
+      builder.add(innerBlock);
+    }
+
+    builder.add("$<}\n");
   }
 }
