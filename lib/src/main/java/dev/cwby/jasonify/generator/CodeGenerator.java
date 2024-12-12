@@ -11,6 +11,7 @@ import javax.annotation.processing.Filer;
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class CodeGenerator {
 
@@ -116,6 +117,8 @@ public class CodeGenerator {
       builder.add("$L.writeBase64String($L)", generatorVar, callable);
     } else if (field.isList()) {
       builder.add(generateListSerialization(generatorVar, instanceName, callable, field));
+    } else if (field.isMap()) {
+      builder.add(generateMapSerialization(generatorVar, instanceName, callable, field));
     } else if (field.isArray()) {
       int depth = field.getArrayDepth();
 
@@ -173,13 +176,49 @@ public class CodeGenerator {
     builder.add("for ($T element : $L.$L) {\n$>", elementTypeField, instanceName, callable);
 
     if (field.isAnnotatedObject()) {
-      builder.addStatement("$L.writeRaw($T.toJson(element))", generatorVar, SerializerManager.class);
+      builder.addStatement(
+          "$L.writeRaw($T.toJson(element))", generatorVar, SerializerManager.class);
     } else {
       builder.addStatement("$L.$L(element)", generatorVar, field.getJGString());
     }
 
     builder.add("$<}\n$<}\n");
     builder.addStatement("$L.writeEndArray()", generatorVar);
+    return builder.build();
+  }
+
+  public CodeBlock generateMapSerialization(
+      String generatorVar, String instanceName, String callable, JsonFieldMetadata field) {
+    CodeBlock.Builder builder = CodeBlock.builder();
+    builder.addStatement("$L.writeStartObject()", generatorVar);
+    builder.add("if ($L.$L != null) {\n$>", instanceName, callable);
+    String key = field.getMapKeyType();
+    String keyPackage = key.substring(0, key.lastIndexOf("."));
+    String keyType = key.substring(key.lastIndexOf(".") + 1);
+
+    String value = field.getMapValueType();
+    String valuePackage = value.substring(0, value.lastIndexOf("."));
+    String valueType = value.substring(value.lastIndexOf(".") + 1);
+
+    builder.add(
+        "for ($T<$T, $T> entry : $L.$L.entrySet()) {\n$>",
+        Map.Entry.class,
+        ClassName.get(keyPackage, keyType),
+        ClassName.get(valuePackage, valueType),
+        instanceName,
+        callable);
+
+    builder.addStatement("$L.writeField(entry.getKey().toString())", generatorVar);
+
+    if (field.isAnnotatedObject()) {
+      builder.addStatement(
+          "$L.writeRaw($T.toJson(entry.getValue()))", generatorVar, SerializerManager.class);
+    } else {
+      builder.addStatement("$L.$L(entry.getValue())", generatorVar, field.getJGString());
+    }
+
+    builder.add("$<}\n$<}\n");
+    builder.addStatement("$L.writeEndObject()", generatorVar);
     return builder.build();
   }
 

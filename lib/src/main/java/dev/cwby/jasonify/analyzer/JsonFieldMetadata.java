@@ -1,5 +1,7 @@
 package dev.cwby.jasonify.analyzer;
 
+import com.palantir.javapoet.ClassName;
+
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -86,20 +88,31 @@ public class JsonFieldMetadata {
     String tempType;
     if (isList()) {
       tempType = getElementListType();
+    } else if (isMap()) {
+      tempType = getMapValueType();
     } else {
       tempType = type;
     }
 
     return switch (tempType.replace("[]", "")) {
       case "java.lang.Character", "java.lang.String" -> "writeString";
-      case "byte" -> "writeBase64String";
-      case "boolean" -> "writeBoolean";
-      case "int", "double" -> "writeNumber";
+      case "byte", "java.lang.Byte" -> "writeBase64String";
+      case "boolean", "java.lang.Boolean" -> "writeBoolean";
+      case "int", "java.lang.Integer", "double", "java.lang.Double", "float", "java.lang.Float" ->
+          "writeNumber";
       default -> throw new IllegalStateException("Unexpected value: " + tempType);
     };
   }
 
   public String getElementListType() {
     return getDeclaredArguments().getFirst();
+  }
+
+  public String getMapKeyType() {
+    return getDeclaredArguments().getFirst();
+  }
+
+  public String getMapValueType() {
+    return getDeclaredArguments().getLast();
   }
 }
