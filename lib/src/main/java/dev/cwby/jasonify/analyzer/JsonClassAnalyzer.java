@@ -1,10 +1,15 @@
 package dev.cwby.jasonify.analyzer;
 
+import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.*;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class JsonClassAnalyzer {
 
@@ -33,7 +38,23 @@ public class JsonClassAnalyzer {
     return el.getModifiers().contains(Modifier.PUBLIC) || hasPublicGetter(el);
   }
 
-  public JsonClassMetadata processClass(TypeElement typeElement, Set<String> annotatedClasses) {
+  private boolean isList(VariableElement variableElement, Elements elementUtils, Types typeUtils) {
+    TypeMirror listType = elementUtils.getTypeElement(List.class.getCanonicalName()).asType();
+    return typeUtils.isAssignable(
+        typeUtils.erasure(variableElement.asType()), typeUtils.erasure(listType));
+  }
+
+  private boolean isMap(VariableElement variableElement, Elements elementUtils, Types typeUtils) {
+    TypeMirror mapType = elementUtils.getTypeElement(Map.class.getCanonicalName()).asType();
+    return typeUtils.isAssignable(
+        typeUtils.erasure(variableElement.asType()), typeUtils.erasure(mapType));
+  }
+
+  public JsonClassMetadata processClass(
+      TypeElement typeElement, Set<String> annotatedClasses, ProcessingEnvironment processingEnv) {
+    Elements elementUtils = processingEnv.getElementUtils();
+    Types typeUtils = processingEnv.getTypeUtils();
+
     var elements = typeElement.getEnclosedElements();
 
     List<VariableElement> variableElements =
@@ -44,14 +65,15 @@ public class JsonClassAnalyzer {
 
     List<JsonFieldMetadata> fields = new ArrayList<>();
     for (VariableElement variableElement : variableElements) {
-      boolean isAnnotated = false;
+      boolean isAnnotated =
+          annotatedClasses.contains(variableElement.asType().toString().replace("[]", ""));
 
-      if (annotatedClasses.contains(variableElement.asType().toString().replace("[]", ""))) {
-        isAnnotated = true;
-        System.out.println(variableElement.asType().toString());
-      }
-
-      fields.add(new JsonFieldMetadata(variableElement, isAnnotated));
+      fields.add(
+          new JsonFieldMetadata(
+              variableElement,
+              isAnnotated,
+              isMap(variableElement, elementUtils, typeUtils),
+              isList(variableElement, elementUtils, typeUtils)));
     }
 
     return new JsonClassMetadata(

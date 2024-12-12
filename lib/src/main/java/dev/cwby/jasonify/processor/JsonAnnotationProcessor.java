@@ -38,7 +38,8 @@ public class JsonAnnotationProcessor extends AbstractProcessor {
             .collect(Collectors.toSet());
 
     for (TypeElement typeElement : classesELements) {
-      jsonClassMetadataList.add(classAnalyzer.processClass(typeElement, annotatedClasses));
+      jsonClassMetadataList.add(
+          classAnalyzer.processClass(typeElement, annotatedClasses, processingEnv));
     }
 
     if (re.processingOver()) {

@@ -114,6 +114,8 @@ public class CodeGenerator {
 
     if (isByteArray) {
       builder.add("$L.writeBase64String($L)", generatorVar, callable);
+    } else if (field.isList()) {
+      builder.add(generateListSerialization(generatorVar, instanceName, callable, field));
     } else if (field.isArray()) {
       int depth = field.getArrayDepth();
 
@@ -156,6 +158,29 @@ public class CodeGenerator {
             "$L.$L($L.$L)", generatorVar, field.getJGString(), instanceName, callable);
       }
     }
+  }
+
+  private CodeBlock generateListSerialization(
+      String generatorVar, String instanceName, String callable, JsonFieldMetadata field) {
+    CodeBlock.Builder builder = CodeBlock.builder();
+    builder.addStatement("$L.writeStartArray()", generatorVar);
+    builder.add("if ($L.$L != null) {\n$>", instanceName, callable);
+    String fieldNameType = field.getElementListType();
+    String packageType = fieldNameType.substring(0, fieldNameType.lastIndexOf("."));
+    String type = fieldNameType.substring(fieldNameType.lastIndexOf(".") + 1);
+    ClassName elementTypeField = ClassName.get(packageType, type);
+
+    builder.add("for ($T element : $L.$L) {\n$>", elementTypeField, instanceName, callable);
+
+    if (field.isAnnotatedObject()) {
+      builder.addStatement("$L.writeRaw($T.toJson(element))", generatorVar, SerializerManager.class);
+    } else {
+      builder.addStatement("$L.$L(element)", generatorVar, field.getJGString());
+    }
+
+    builder.add("$<}\n$<}\n");
+    builder.addStatement("$L.writeEndArray()", generatorVar);
+    return builder.build();
   }
 
   private CodeBlock generateForLoop(
