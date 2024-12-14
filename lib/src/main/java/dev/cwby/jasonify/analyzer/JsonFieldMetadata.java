@@ -1,12 +1,10 @@
 package dev.cwby.jasonify.analyzer;
 
-import com.palantir.javapoet.ClassName;
-
+import java.util.List;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import java.util.List;
 
 public class JsonFieldMetadata {
 
@@ -114,5 +112,9 @@ public class JsonFieldMetadata {
 
   public String getMapValueType() {
     return getDeclaredArguments().getLast();
+  }
+
+  public String getCallable() {
+    return hasGetter() ? getterMethod() : getName();
   }
 }

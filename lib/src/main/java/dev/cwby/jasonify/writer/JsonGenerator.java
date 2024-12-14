@@ -15,6 +15,10 @@ public class JsonGenerator {
     this.appendable = appendable;
   }
 
+  public JsonGenerator() {
+    this.appendable = new StringBuilder();
+  }
+
   private boolean isFirst() {
     return isFirst;
   }

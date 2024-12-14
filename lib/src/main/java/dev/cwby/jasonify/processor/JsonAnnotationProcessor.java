@@ -4,16 +4,16 @@ import com.google.auto.service.AutoService;
 import dev.cwby.jasonify.analyzer.JsonClassAnalyzer;
 import dev.cwby.jasonify.analyzer.JsonClassMetadata;
 import dev.cwby.jasonify.annotation.Json;
-import dev.cwby.jasonify.generator.CodeGenerator;
-
-import javax.annotation.processing.*;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.TypeElement;
+import dev.cwby.jasonify.generator.AutoRegisterCodeGenerator;
+import dev.cwby.jasonify.generator.SerializerCodeGenerator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.processing.*;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.TypeElement;
 
 @AutoService(Processor.class)
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
 public class JsonAnnotationProcessor extends AbstractProcessor {
 
   private final JsonClassAnalyzer classAnalyzer = new JsonClassAnalyzer();
-  private final CodeGenerator codeGenerator = new CodeGenerator();
   private final List<JsonClassMetadata> jsonClassMetadataList = new ArrayList<>();
 
   @Override
@@ -43,7 +42,8 @@ public class JsonAnnotationProcessor extends AbstractProcessor {
     }
 
     if (re.processingOver()) {
-      codeGenerator.write(jsonClassMetadataList, processingEnv.getFiler());
+      new SerializerCodeGenerator("jg", jsonClassMetadataList, processingEnv.getFiler()).write();
+      new AutoRegisterCodeGenerator(jsonClassMetadataList, processingEnv.getFiler()).write();
     }
 
     return true;
