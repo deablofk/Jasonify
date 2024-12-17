@@ -41,7 +41,7 @@ public class SerializerCodeGenerator {
             .addField(
                 FieldSpec.builder(
                         JsonGenerator.class,
-                        "jg",
+                        generatorVar,
                         Modifier.PRIVATE,
                         Modifier.STATIC,
                         Modifier.FINAL)
@@ -57,126 +57,134 @@ public class SerializerCodeGenerator {
 
   public MethodSpec generateToJsonMethod(List<JsonFieldMetadata> fields, ClassName className) {
     String obj = className.simpleName();
-    this.instanceName = obj.substring(0, 1).toLowerCase() + obj.substring(1);
+    instanceName = Character.toLowerCase(obj.charAt(0)) + obj.substring(1);
 
-    var builder =
-        MethodSpec.methodBuilder("toJson")
-            .addAnnotation(Override.class)
-            .addModifiers(Modifier.PUBLIC)
-            .returns(String.class)
-            .addParameter(className, this.instanceName, Modifier.FINAL)
-            .addCode(generateSerializationCode(fields))
-            .addStatement("return $L.getJson()", generatorVar);
+    return MethodSpec.methodBuilder("toJson")
+        .addAnnotation(Override.class)
+        .addModifiers(Modifier.PUBLIC)
+        .returns(String.class)
+        .addParameter(className, instanceName, Modifier.FINAL)
+        .addCode(generateSerializationCode(fields))
+        .addStatement("return $L.getJson()", generatorVar)
+        .build();
+  }
+
+  private CodeBlock generateSerializationCode(List<JsonFieldMetadata> fields) {
+    var builder = CodeBlock.builder();
+
+    builder.addStatement("$L.reset()", generatorVar);
+    builder.beginControlFlow("try");
+    builder.add(startObject());
+
+    for (var field : fields) {
+      builder.add(addFieldSerializationCode(field));
+    }
+
+    builder.add(endObject());
+    builder.endControlFlow();
+    builder.beginControlFlow("catch (Exception e)");
+    builder.addStatement("e.printStackTrace()");
+    builder.endControlFlow();
 
     return builder.build();
   }
 
-  public CodeBlock generateSerializationCode(List<JsonFieldMetadata> fields) {
-    var builder =
-        CodeBlock.builder()
-            .addStatement("jg.reset()")
-            .add("try {\n$>")
-            .addStatement("$L.writeStartObject()", generatorVar);
-
-    fields.forEach(field -> addFieldSerializationCode(builder, field));
-
-    builder
-        .addStatement("$L.writeEndObject()", generatorVar)
-        .add("$<} catch (Exception e) {\n$>e.printStackTrace();$<\n}\n");
-    return builder.build();
-  }
-
-  private void addFieldSerializationCode(CodeBlock.Builder builder, JsonFieldMetadata field) {
+  private CodeBlock addFieldSerializationCode(JsonFieldMetadata field) {
+    var builder = CodeBlock.builder();
     builder.addStatement("$L.writeField($S)", generatorVar, field.getName());
-    boolean isByteArray = field.isArray() && field.getType().replace("[]", "").equals("byte");
 
-    if (isByteArray) {
+    if (field.isByteArray()) {
       builder.add("$L.writeBase64String($L)", generatorVar, field.getCallable());
-    } else if (field.isList()) {
+    } else if (field.isList() || field.isArray()) {
       builder.add(generateArraySerialization(field));
     } else if (field.isMap()) {
       builder.add(generateMapSerialization(field));
-    } else if (field.isArray()) {
-      builder.add(generateArraySerialization(field));
     } else {
       builder.add(generateSingleObjectSerialization(field));
     }
+
+    return builder.build();
+  }
+
+  public CodeBlock generateArraySerialization(JsonFieldMetadata field) {
+    return generateForLoop(field, getInnerBlockForArrayOrList(field));
+  }
+
+  public CodeBlock generateMapSerialization(JsonFieldMetadata field) {
+    return generateMapLoop(field, getInnerBlockForMap(field));
+  }
+
+  private CodeBlock getInnerBlockForArrayOrList(JsonFieldMetadata field) {
+    var builder = CodeBlock.builder();
+    int depth = field.isArray() ? field.getArrayDepth() : field.getCollectionDepth();
+
+    if (field.isAnnotatedObject()) {
+      builder.addStatement(
+          "$L.writeRaw($T.toJson(v$L))", generatorVar, SerializerManager.class, depth - 1);
+    } else {
+      String methodType =
+          field.isArray()
+              ? field.getJGString()
+              : field.getMethodForType(field.getInnermostListType());
+      builder.addStatement("$L.$L(v$L)", generatorVar, methodType, depth - 1);
+    }
+
+    return builder.build();
+  }
+
+  private CodeBlock getInnerBlockForMap(JsonFieldMetadata field) {
+    var builder = CodeBlock.builder();
+
+    if (JsonAnnotationProcessor.annotatedClasses.contains(field.getInnerMostMapType())) {
+      builder.addStatement("$L.writeField(v$L.getKey())", generatorVar, field.getDepth() - 1);
+      builder.addStatement(
+          "$L.writeRaw($T.toJson(v$L.getValue()))",
+          generatorVar,
+          SerializerManager.class,
+          field.getDepth() - 1);
+    } else {
+      String methodType = field.getMethodForType(field.getInnerMostMapType());
+      builder.addStatement("$L.writeField(v$L.getKey())", generatorVar, field.getDepth() - 1);
+      builder.addStatement("$L.$L(v$L.getValue())", generatorVar, methodType, field.getDepth() - 1);
+    }
+
+    return builder.build();
   }
 
   private CodeBlock generateForLoop(JsonFieldMetadata field, CodeBlock innerBlock) {
     var builder = CodeBlock.builder();
-    String type = field.getType().replace("[]", "");
+    builder.add(startArray());
 
-    builder.addStatement("$L.writeStartArray()", generatorVar);
+    builder.beginControlFlow("if ($L != null)", instanceName);
+    generateNestedLoops(builder, field.getCallable(), innerBlock, field.getDepth(), 0);
+    builder.endControlFlow();
 
-    int depth = field.isArray() ? field.getArrayDepth() : field.getCollectionDepth();
-    if (depth > 0) {
-      builder.add("if ($L != null) {\n$>", instanceName);
-      generateNestedLoops(builder, type, instanceName, field.getCallable(), innerBlock, depth, 0);
-      builder.add("$<}\n");
-    }
-
-    builder.addStatement("$L.writeEndArray()", generatorVar);
+    builder.add(endArray());
     return builder.build();
   }
 
   private void generateNestedLoops(
       CodeBlock.Builder builder,
-      String type,
-      String instanceName,
       String callable,
       CodeBlock innerBlock,
-      int maxDepth,
+      int depth,
       int currentDepth) {
     String loopVar = "v" + currentDepth;
     if (currentDepth > 0) {
-      builder.add("for(var $L : v$L) {\n$>", loopVar, currentDepth - 1);
+      builder.beginControlFlow("for(var $L : v$L)", loopVar, currentDepth - 1);
     } else {
-      builder.add("for(var $L : $L.$L) {\n$>", loopVar, instanceName, callable);
+      builder.beginControlFlow("for(var $L : $L.$L)", loopVar, instanceName, callable);
     }
 
-    if (currentDepth + 1 < maxDepth) {
-      builder.addStatement("$L.writeStartArray()", generatorVar);
-      generateNestedLoops(
-          builder, type, instanceName, callable, innerBlock, maxDepth, currentDepth + 1);
-      builder.addStatement("$L.writeEndArray()", generatorVar);
+    if (currentDepth + 1 < depth) {
+      builder.add(startArray());
+      generateNestedLoops(builder, callable, innerBlock, depth, currentDepth + 1);
+      builder.add(endArray());
     } else {
       builder.add(innerBlock);
     }
 
-    builder.add("$<}\n");
-  }
-
-  public CodeBlock generateArraySerialization(JsonFieldMetadata field) {
-    var builder = CodeBlock.builder();
-    int depth = field.isArray() ? field.getArrayDepth() : field.getCollectionDepth();
-
-    if (field.isAnnotatedObject()) {
-      builder.add(
-          generateForLoop(
-              field,
-              CodeBlock.builder()
-                  .addStatement(
-                      "$L.writeRaw($T.toJson(v$L))",
-                      generatorVar,
-                      SerializerManager.class,
-                      depth - 1)
-                  .build()));
-    } else {
-      String methodType;
-      if (field.isList() && depth > 1) {
-        methodType = field.getMethodForType(field.getInnermostListType());
-      } else {
-        methodType = field.getJGString();
-      }
-      builder.add(
-          generateForLoop(
-              field,
-              CodeBlock.builder()
-                  .addStatement("$L.$L(v$L)", generatorVar, methodType, depth - 1)
-                  .build()));
-    }
-    return builder.build();
+    builder.endControlFlow();
   }
 
   public CodeBlock generateSingleObjectSerialization(JsonFieldMetadata field) {
@@ -201,78 +209,57 @@ public class SerializerCodeGenerator {
     return ClassName.get(packageType, type);
   }
 
-  public CodeBlock generateMapSerialization(JsonFieldMetadata field) {
-    var builder = CodeBlock.builder();
-    int depth = field.getMapDepth();
-    String type = field.getInnerMostMapType();
-    System.out.println(type);
-
-    if (JsonAnnotationProcessor.annotatedClasses.contains(type)) {
-      builder.add(
-          generateMapLoop(
-              field,
-              CodeBlock.builder()
-                  .addStatement("$L.writeField(v$L.getKey())", generatorVar, depth - 1)
-                  .addStatement(
-                      "$L.writeRaw($T.toJson(v$L.getValue()))",
-                      generatorVar,
-                      SerializerManager.class,
-                      depth - 1)
-                  .build()));
-    } else {
-      System.out.println("fieldName: " + field.getName());
-      String methodType = field.getMethodForType(field.getInnerMostMapType());
-      builder.add(
-          generateMapLoop(
-              field,
-              CodeBlock.builder()
-                  .addStatement("$L.writeField(v$L.getKey())", generatorVar, depth - 1)
-                  .addStatement("$L.$L(v$L.getValue())", generatorVar, methodType, depth - 1)
-                  .build()));
-    }
-    return builder.build();
-  }
-
   private CodeBlock generateMapLoop(JsonFieldMetadata field, CodeBlock innerBlock) {
     var builder = CodeBlock.builder();
-    String type = field.getType().replace("[]", "");
-    int depth = field.getMapDepth();
-    builder.addStatement("$L.writeStartObject()", generatorVar);
-    if (depth > 0) {
-      builder.add("if ($L != null) {\n$>", instanceName);
-      generateNestedMap(builder, type, instanceName, field.getCallable(), innerBlock, depth, 0);
-      builder.add("$<}\n");
-    }
+    builder.add(startObject());
 
-    builder.addStatement("$L.writeEndObject()", generatorVar);
+    builder.beginControlFlow("if ($L != null)", instanceName);
+    generateNestedMap(builder, field.getCallable(), innerBlock, field.getDepth(), 0);
+    builder.endControlFlow();
+
+    builder.add(endObject());
     return builder.build();
   }
 
   private void generateNestedMap(
       CodeBlock.Builder builder,
-      String type,
-      String instanceName,
       String callable,
       CodeBlock innerBlock,
-      int maxDepth,
+      int depth,
       int currentDepth) {
     String loopVar = "v" + currentDepth;
     if (currentDepth > 0) {
-      builder.add("for(var $L : v$L.getValue().entrySet()) {\n$>", loopVar, currentDepth - 1);
+      builder.beginControlFlow(
+          "for(var $L : v$L.getValue().entrySet())", loopVar, currentDepth - 1);
     } else {
-      builder.add("for(var $L : $L.$L.entrySet()) {\n$>", loopVar, instanceName, callable);
+      builder.beginControlFlow("for(var $L : $L.$L.entrySet())", loopVar, instanceName, callable);
     }
 
-    if (currentDepth + 1 < maxDepth) {
+    if (currentDepth + 1 < depth) {
       builder.addStatement("$L.writeField(v$L.getKey())", generatorVar, currentDepth);
-      builder.addStatement("$L.writeStartObject()", generatorVar);
-      generateNestedMap(
-          builder, type, instanceName, callable, innerBlock, maxDepth, currentDepth + 1);
-      builder.addStatement("$L.writeEndObject()", generatorVar);
+      builder.add(startObject());
+      generateNestedMap(builder, callable, innerBlock, depth, currentDepth + 1);
+      builder.add(endObject());
     } else {
       builder.add(innerBlock);
     }
 
-    builder.add("$<}\n");
+    builder.endControlFlow();
+  }
+
+  public CodeBlock startObject() {
+    return CodeBlock.builder().addStatement("$L.writeStartObject()", generatorVar).build();
+  }
+
+  public CodeBlock endObject() {
+    return CodeBlock.builder().addStatement("$L.writeEndObject()", generatorVar).build();
+  }
+
+  public CodeBlock startArray() {
+    return CodeBlock.builder().addStatement("$L.writeStartArray()", generatorVar).build();
+  }
+
+  public CodeBlock endArray() {
+    return CodeBlock.builder().addStatement("$L.writeEndArray()", generatorVar).build();
   }
 }

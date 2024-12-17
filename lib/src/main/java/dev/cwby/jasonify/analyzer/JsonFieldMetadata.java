@@ -67,6 +67,17 @@ public class JsonFieldMetadata {
     return JsonClassAnalyzer.getMethodNameByField(this.name) + "()";
   }
 
+  public int getDepth() {
+    if (array) {
+      return getArrayDepth();
+    } else if (list) {
+      return getCollectionDepth();
+    } else if (map) {
+      return getMapDepth();
+    }
+    return 0;
+  }
+
   public int getArrayDepth() {
     if (!array) {
       return 0;
@@ -201,5 +212,9 @@ public class JsonFieldMetadata {
 
   public String getCallable() {
     return hasGetter() ? getterMethod() : getName();
+  }
+
+  public boolean isByteArray() {
+    return isArray() && getType().replace("[]", "").equals("byte");
   }
 }
