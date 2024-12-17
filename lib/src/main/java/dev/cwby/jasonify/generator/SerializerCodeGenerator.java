@@ -4,11 +4,11 @@ import com.palantir.javapoet.*;
 import dev.cwby.jasonify.SerializerManager;
 import dev.cwby.jasonify.analyzer.JsonClassMetadata;
 import dev.cwby.jasonify.analyzer.JsonFieldMetadata;
+import dev.cwby.jasonify.processor.JsonAnnotationProcessor;
 import dev.cwby.jasonify.serializer.IJsonSerializer;
 import dev.cwby.jasonify.writer.JsonGenerator;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.Modifier;
 
@@ -103,34 +103,8 @@ public class SerializerCodeGenerator {
     }
   }
 
-  public CodeBlock generateMapSerialization(JsonFieldMetadata field) {
-    var builder = CodeBlock.builder();
-    builder.addStatement("$L.writeStartObject()", generatorVar);
-    builder.add("if ($L.$L != null) {\n$>", instanceName, field.getCallable());
-    builder.add(
-        "for ($T<$T, $T> entry : $L.$L.entrySet()) {\n$>",
-        Map.Entry.class,
-        getClassName(field.getMapKeyType()),
-        getClassName(field.getMapValueType()),
-        instanceName,
-        field.getCallable());
-
-    builder.addStatement("$L.writeField(entry.getKey().toString())", generatorVar);
-
-    if (field.isAnnotatedObject()) {
-      builder.addStatement(
-          "$L.writeRaw($T.toJson(entry.getValue()))", generatorVar, SerializerManager.class);
-    } else {
-      builder.addStatement("$L.$L(entry.getValue())", generatorVar, field.getJGString());
-    }
-
-    builder.add("$<}\n$<}\n");
-    builder.addStatement("$L.writeEndObject()", generatorVar);
-    return builder.build();
-  }
-
   private CodeBlock generateForLoop(JsonFieldMetadata field, CodeBlock innerBlock) {
-    CodeBlock.Builder builder = CodeBlock.builder();
+    var builder = CodeBlock.builder();
     String type = field.getType().replace("[]", "");
 
     builder.addStatement("$L.writeStartArray()", generatorVar);
@@ -176,7 +150,6 @@ public class SerializerCodeGenerator {
   public CodeBlock generateArraySerialization(JsonFieldMetadata field) {
     var builder = CodeBlock.builder();
     int depth = field.isArray() ? field.getArrayDepth() : field.getCollectionDepth();
-    System.out.println(depth);
 
     if (field.isAnnotatedObject()) {
       builder.add(
@@ -226,5 +199,80 @@ public class SerializerCodeGenerator {
     String packageType = qualifiedName.substring(0, qualifiedName.lastIndexOf("."));
     String type = qualifiedName.substring(qualifiedName.lastIndexOf(".") + 1);
     return ClassName.get(packageType, type);
+  }
+
+  public CodeBlock generateMapSerialization(JsonFieldMetadata field) {
+    var builder = CodeBlock.builder();
+    int depth = field.getMapDepth();
+    String type = field.getInnerMostMapType();
+    System.out.println(type);
+
+    if (JsonAnnotationProcessor.annotatedClasses.contains(type)) {
+      builder.add(
+          generateMapLoop(
+              field,
+              CodeBlock.builder()
+                  .addStatement("$L.writeField(v$L.getKey())", generatorVar, depth - 1)
+                  .addStatement(
+                      "$L.writeRaw($T.toJson(v$L.getValue()))",
+                      generatorVar,
+                      SerializerManager.class,
+                      depth - 1)
+                  .build()));
+    } else {
+      System.out.println("fieldName: " + field.getName());
+      String methodType = field.getMethodForType(field.getInnerMostMapType());
+      builder.add(
+          generateMapLoop(
+              field,
+              CodeBlock.builder()
+                  .addStatement("$L.writeField(v$L.getKey())", generatorVar, depth - 1)
+                  .addStatement("$L.$L(v$L.getValue())", generatorVar, methodType, depth - 1)
+                  .build()));
+    }
+    return builder.build();
+  }
+
+  private CodeBlock generateMapLoop(JsonFieldMetadata field, CodeBlock innerBlock) {
+    var builder = CodeBlock.builder();
+    String type = field.getType().replace("[]", "");
+    int depth = field.getMapDepth();
+    builder.addStatement("$L.writeStartObject()", generatorVar);
+    if (depth > 0) {
+      builder.add("if ($L != null) {\n$>", instanceName);
+      generateNestedMap(builder, type, instanceName, field.getCallable(), innerBlock, depth, 0);
+      builder.add("$<}\n");
+    }
+
+    builder.addStatement("$L.writeEndObject()", generatorVar);
+    return builder.build();
+  }
+
+  private void generateNestedMap(
+      CodeBlock.Builder builder,
+      String type,
+      String instanceName,
+      String callable,
+      CodeBlock innerBlock,
+      int maxDepth,
+      int currentDepth) {
+    String loopVar = "v" + currentDepth;
+    if (currentDepth > 0) {
+      builder.add("for(var $L : v$L.getValue().entrySet()) {\n$>", loopVar, currentDepth - 1);
+    } else {
+      builder.add("for(var $L : $L.$L.entrySet()) {\n$>", loopVar, instanceName, callable);
+    }
+
+    if (currentDepth + 1 < maxDepth) {
+      builder.addStatement("$L.writeField(v$L.getKey())", generatorVar, currentDepth);
+      builder.addStatement("$L.writeStartObject()", generatorVar);
+      generateNestedMap(
+          builder, type, instanceName, callable, innerBlock, maxDepth, currentDepth + 1);
+      builder.addStatement("$L.writeEndObject()", generatorVar);
+    } else {
+      builder.add(innerBlock);
+    }
+
+    builder.add("$<}\n");
   }
 }

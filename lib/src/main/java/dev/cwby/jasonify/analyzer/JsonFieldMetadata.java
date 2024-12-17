@@ -89,11 +89,31 @@ public class JsonFieldMetadata {
 
     while (currentType instanceof DeclaredType declaredType) {
       String rawType = declaredType.asElement().toString();
-      if (rawType.equals(List.class.getCanonicalName())
-          || rawType.equals(Map.class.getCanonicalName())) {
+      if (rawType.equals(List.class.getCanonicalName())) {
         depth++;
         if (!declaredType.getTypeArguments().isEmpty()) {
-          currentType = declaredType.getTypeArguments().get(0);
+          currentType = declaredType.getTypeArguments().getFirst();
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+
+    return depth;
+  }
+
+  public int getMapDepth() {
+    int depth = 0;
+    TypeMirror currentType = field.asType();
+
+    while (currentType instanceof DeclaredType declaredType) {
+      String rawType = declaredType.asElement().toString();
+      if (rawType.equals(Map.class.getCanonicalName())) {
+        depth++;
+        if (!declaredType.getTypeArguments().isEmpty()) {
+          currentType = declaredType.getTypeArguments().getLast();
         } else {
           break;
         }
@@ -113,6 +133,25 @@ public class JsonFieldMetadata {
       if (rawType.equals(List.class.getCanonicalName())) {
         if (!declaredType.getTypeArguments().isEmpty()) {
           currentType = declaredType.getTypeArguments().getFirst();
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+
+    return currentType.toString();
+  }
+
+  public String getInnerMostMapType() {
+    TypeMirror currentType = field.asType();
+
+    while (currentType instanceof DeclaredType declaredType) {
+      String rawType = declaredType.asElement().toString();
+      if (rawType.equals(Map.class.getCanonicalName())) {
+        if (!declaredType.getTypeArguments().isEmpty()) {
+          currentType = declaredType.getTypeArguments().getLast();
         } else {
           break;
         }

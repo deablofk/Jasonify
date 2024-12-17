@@ -7,6 +7,7 @@ import dev.cwby.jasonify.annotation.Json;
 import dev.cwby.jasonify.generator.AutoRegisterCodeGenerator;
 import dev.cwby.jasonify.generator.SerializerCodeGenerator;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -22,6 +23,7 @@ public class JsonAnnotationProcessor extends AbstractProcessor {
 
   private final JsonClassAnalyzer classAnalyzer = new JsonClassAnalyzer();
   private final List<JsonClassMetadata> jsonClassMetadataList = new ArrayList<>();
+  public static Set<String> annotatedClasses = new HashSet<>();
 
   @Override
   public boolean process(Set<? extends TypeElement> set, RoundEnvironment re) {
@@ -31,10 +33,10 @@ public class JsonAnnotationProcessor extends AbstractProcessor {
             .map(TypeElement.class::cast)
             .collect(Collectors.toSet());
 
-    Set<String> annotatedClasses =
+    annotatedClasses.addAll(
         classesELements.stream()
             .map(x -> x.getQualifiedName().toString())
-            .collect(Collectors.toSet());
+            .collect(Collectors.toSet()));
 
     for (TypeElement typeElement : classesELements) {
       jsonClassMetadataList.add(
