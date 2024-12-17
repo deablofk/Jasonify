@@ -27,7 +27,7 @@ public class SerializerCodeGenerator {
   }
 
   public void write() {
-    jsonClassMetadata.forEach(jcm -> writeClass(jcm));
+    jsonClassMetadata.forEach(this::writeClass);
   }
 
   public void writeClass(JsonClassMetadata jcm) {
@@ -38,6 +38,15 @@ public class SerializerCodeGenerator {
             .addSuperinterface(
                 ParameterizedTypeName.get(ClassName.get(IJsonSerializer.class), className))
             .addMethod(generateToJsonMethod(jcm.fields(), className))
+            .addField(
+                FieldSpec.builder(
+                        JsonGenerator.class,
+                        "jg",
+                        Modifier.PRIVATE,
+                        Modifier.STATIC,
+                        Modifier.FINAL)
+                    .initializer("new $T()", JsonGenerator.class)
+                    .build())
             .build();
     try {
       JavaFile.builder("dev.cwby.jasonify.serializers", typeSpec).build().writeTo(filer);
@@ -65,7 +74,7 @@ public class SerializerCodeGenerator {
   public CodeBlock generateSerializationCode(List<JsonFieldMetadata> fields) {
     var builder =
         CodeBlock.builder()
-            .addStatement("var $L = new $T()", generatorVar, JsonGenerator.class)
+            .addStatement("jg.reset()")
             .add("try {\n$>")
             .addStatement("$L.writeStartObject()", generatorVar);
 

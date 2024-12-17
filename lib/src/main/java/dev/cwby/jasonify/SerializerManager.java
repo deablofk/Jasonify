@@ -27,6 +27,7 @@ public class SerializerManager {
     SERIALIZER_MAP.put(qualifiedName, serializer);
   }
 
+  @SuppressWarnings("unchecked")
   public static <T> IJsonSerializer<T> getSerializer(String qualifiedName) {
     return (IJsonSerializer<T>) SERIALIZER_MAP.get(qualifiedName);
   }

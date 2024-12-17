@@ -1,7 +1,6 @@
 package dev.cwby.jasonify.writer;
 
 import dev.cwby.jasonify.exception.AppendJsonException;
-
 import java.io.IOException;
 import java.util.Base64;
 
@@ -75,7 +74,7 @@ public class JsonGenerator {
 
   public JsonGenerator writeString(String value) throws AppendJsonException {
     handleComma();
-    append("\"").append(value).append("\"");
+    append("\"").append(escapeString(value)).append("\"");
     return this;
   }
 
@@ -112,5 +111,32 @@ public class JsonGenerator {
   // TODO: pretty printing
   public String getJson() {
     return appendable.toString();
+  }
+
+  public void reset() {
+    this.depth = 0;
+    this.isFirst = true;
+    if (this.appendable instanceof StringBuilder) {
+      ((StringBuilder) this.appendable).setLength(0);
+    }
+  }
+
+  public String escapeString(String content) {
+    var strBuilder = new StringBuilder(content.length());
+
+    for (char c : content.toCharArray()) {
+      switch (c) {
+        case '\"' -> strBuilder.append("\\\"");
+        case '\\' -> strBuilder.append("\\\\");
+        case '\b' -> strBuilder.append("\\b");
+        case '\f' -> strBuilder.append("\\f");
+        case '\n' -> strBuilder.append("\\n");
+        case '\r' -> strBuilder.append("\\r");
+        case '\t' -> strBuilder.append("\\t");
+        default -> strBuilder.append(c);
+      }
+    }
+
+    return strBuilder.toString();
   }
 }
