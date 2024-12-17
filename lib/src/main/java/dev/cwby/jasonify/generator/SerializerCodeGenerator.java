@@ -93,7 +93,7 @@ public class SerializerCodeGenerator {
     if (isByteArray) {
       builder.add("$L.writeBase64String($L)", generatorVar, field.getCallable());
     } else if (field.isList()) {
-      builder.add(generateCollectionSerialization(field));
+      builder.add(generateArraySerialization(field));
     } else if (field.isMap()) {
       builder.add(generateMapSerialization(field));
     } else if (field.isArray()) {
@@ -101,24 +101,6 @@ public class SerializerCodeGenerator {
     } else {
       builder.add(generateSingleObjectSerialization(field));
     }
-  }
-
-  private CodeBlock generateCollectionSerialization(JsonFieldMetadata field) {
-    var builder =
-        CodeBlock.builder()
-            .addStatement("$L.writeStartArray()", generatorVar)
-            .add("if ($L.$L != null) {\n$>", instanceName, field.getCallable())
-            .add("for (var element : $L.$L) {\n$>", instanceName, field.getCallable());
-
-    if (field.isAnnotatedObject()) {
-      builder.addStatement(
-          "$L.writeRaw($T.toJson(element))", generatorVar, SerializerManager.class);
-    } else {
-      builder.addStatement("$L.$L(element)", generatorVar, field.getJGString());
-    }
-
-    builder.add("$<}\n$<}\n").addStatement("$L.writeEndArray()", generatorVar);
-    return builder.build();
   }
 
   public CodeBlock generateMapSerialization(JsonFieldMetadata field) {
@@ -153,7 +135,7 @@ public class SerializerCodeGenerator {
 
     builder.addStatement("$L.writeStartArray()", generatorVar);
 
-    int depth = field.getArrayDepth();
+    int depth = field.isArray() ? field.getArrayDepth() : field.getCollectionDepth();
     if (depth > 0) {
       builder.add("if ($L != null) {\n$>", instanceName);
       generateNestedLoops(builder, type, instanceName, field.getCallable(), innerBlock, depth, 0);
@@ -193,7 +175,8 @@ public class SerializerCodeGenerator {
 
   public CodeBlock generateArraySerialization(JsonFieldMetadata field) {
     var builder = CodeBlock.builder();
-    int depth = field.getArrayDepth();
+    int depth = field.isArray() ? field.getArrayDepth() : field.getCollectionDepth();
+    System.out.println(depth);
 
     if (field.isAnnotatedObject()) {
       builder.add(
@@ -207,11 +190,17 @@ public class SerializerCodeGenerator {
                       depth - 1)
                   .build()));
     } else {
+      String methodType;
+      if (field.isList() && depth > 1) {
+        methodType = field.getMethodForType(field.getInnermostListType());
+      } else {
+        methodType = field.getJGString();
+      }
       builder.add(
           generateForLoop(
               field,
               CodeBlock.builder()
-                  .addStatement("$L.$L(v$L)", generatorVar, field.getJGString(), depth - 1)
+                  .addStatement("$L.$L(v$L)", generatorVar, methodType, depth - 1)
                   .build()));
     }
     return builder.build();

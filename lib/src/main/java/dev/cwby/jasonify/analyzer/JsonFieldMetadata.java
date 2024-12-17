@@ -1,6 +1,7 @@
 package dev.cwby.jasonify.analyzer;
 
 import java.util.List;
+import java.util.Map;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -82,6 +83,47 @@ public class JsonFieldMetadata {
     return count;
   }
 
+  public int getCollectionDepth() {
+    int depth = 0;
+    TypeMirror currentType = field.asType();
+
+    while (currentType instanceof DeclaredType declaredType) {
+      String rawType = declaredType.asElement().toString();
+      if (rawType.equals(List.class.getCanonicalName())
+          || rawType.equals(Map.class.getCanonicalName())) {
+        depth++;
+        if (!declaredType.getTypeArguments().isEmpty()) {
+          currentType = declaredType.getTypeArguments().get(0);
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+
+    return depth;
+  }
+
+  public String getInnermostListType() {
+    TypeMirror currentType = field.asType();
+
+    while (currentType instanceof DeclaredType declaredType) {
+      String rawType = declaredType.asElement().toString();
+      if (rawType.equals(List.class.getCanonicalName())) {
+        if (!declaredType.getTypeArguments().isEmpty()) {
+          currentType = declaredType.getTypeArguments().getFirst();
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+
+    return currentType.toString();
+  }
+
   public String getJGString() {
     String tempType;
     if (isList()) {
@@ -92,13 +134,17 @@ public class JsonFieldMetadata {
       tempType = type;
     }
 
-    return switch (tempType.replace("[]", "")) {
+    return getMethodForType(tempType);
+  }
+
+  public String getMethodForType(String type) {
+    return switch (type.replace("[]", "")) {
       case "java.lang.Character", "java.lang.String" -> "writeString";
       case "byte", "java.lang.Byte" -> "writeBase64String";
       case "boolean", "java.lang.Boolean" -> "writeBoolean";
       case "int", "java.lang.Integer", "double", "java.lang.Double", "float", "java.lang.Float" ->
           "writeNumber";
-      default -> throw new IllegalStateException("Unexpected value: " + tempType);
+      default -> throw new IllegalStateException("Unexpected value: " + type);
     };
   }
 
