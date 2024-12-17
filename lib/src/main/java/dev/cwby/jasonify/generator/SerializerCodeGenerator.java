@@ -108,11 +108,7 @@ public class SerializerCodeGenerator {
         CodeBlock.builder()
             .addStatement("$L.writeStartArray()", generatorVar)
             .add("if ($L.$L != null) {\n$>", instanceName, field.getCallable())
-            .add(
-                "for ($T element : $L.$L) {\n$>",
-                getClassName(field.getElementListType()),
-                instanceName,
-                field.getCallable());
+            .add("for (var element : $L.$L) {\n$>", instanceName, field.getCallable());
 
     if (field.isAnnotatedObject()) {
       builder.addStatement(
@@ -177,19 +173,10 @@ public class SerializerCodeGenerator {
       int maxDepth,
       int currentDepth) {
     String loopVar = "v" + currentDepth;
-    StringBuilder arrayDelimiter = new StringBuilder();
-    arrayDelimiter.append("[]".repeat(Math.max(0, maxDepth - currentDepth - 1)));
     if (currentDepth > 0) {
-      builder.add(
-          "for($L$L $L : v$L) {\n$>", type, arrayDelimiter.toString(), loopVar, currentDepth - 1);
+      builder.add("for(var $L : v$L) {\n$>", loopVar, currentDepth - 1);
     } else {
-      builder.add(
-          "for($L$L $L : $L.$L) {\n$>",
-          type,
-          arrayDelimiter.toString(),
-          loopVar,
-          instanceName,
-          callable);
+      builder.add("for(var $L : $L.$L) {\n$>", loopVar, instanceName, callable);
     }
 
     if (currentDepth + 1 < maxDepth) {
