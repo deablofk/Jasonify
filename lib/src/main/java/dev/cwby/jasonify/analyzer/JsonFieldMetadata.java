@@ -1,5 +1,6 @@
 package dev.cwby.jasonify.analyzer;
 
+import dev.cwby.jasonify.annotation.JsonName;
 import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.VariableElement;
@@ -43,6 +44,10 @@ public class JsonFieldMetadata {
     return name;
   }
 
+  public String getJsonName() {
+    return hasAnnotation(JsonName.class) ? field.getAnnotation(JsonName.class).value() : name;
+  }
+
   public boolean isArray() {
     return array;
   }
@@ -71,9 +76,9 @@ public class JsonFieldMetadata {
     if (array) {
       return getArrayDepth();
     } else if (list) {
-      return getCollectionDepth();
+      return getDepthForType(List.class);
     } else if (map) {
-      return getMapDepth();
+      return getDepthForType(Map.class);
     }
     return 0;
   }
@@ -94,43 +99,30 @@ public class JsonFieldMetadata {
     return count;
   }
 
-  public int getCollectionDepth() {
-    int depth = 0;
-    TypeMirror currentType = field.asType();
-
-    while (currentType instanceof DeclaredType declaredType) {
-      String rawType = declaredType.asElement().toString();
-      if (rawType.equals(List.class.getCanonicalName())) {
-        depth++;
-        if (!declaredType.getTypeArguments().isEmpty()) {
-          currentType = declaredType.getTypeArguments().getFirst();
-        } else {
-          break;
-        }
-      } else {
-        break;
-      }
-    }
-
-    return depth;
+  public boolean hasAnnotation(Class<?> annotationClass) {
+    return field.getAnnotationMirrors().stream()
+        .anyMatch(
+            x ->
+                x.getAnnotationType()
+                    .asElement()
+                    .toString()
+                    .equals(annotationClass.getCanonicalName()));
   }
 
-  public int getMapDepth() {
+  public int getDepthForType(Class<?> classType) {
     int depth = 0;
     TypeMirror currentType = field.asType();
 
     while (currentType instanceof DeclaredType declaredType) {
       String rawType = declaredType.asElement().toString();
-      if (rawType.equals(Map.class.getCanonicalName())) {
-        depth++;
-        if (!declaredType.getTypeArguments().isEmpty()) {
-          currentType = declaredType.getTypeArguments().getLast();
-        } else {
-          break;
-        }
-      } else {
+      if (!rawType.equals(classType.getCanonicalName())) {
         break;
       }
+      depth++;
+      if (declaredType.getTypeArguments().isEmpty()) {
+        break;
+      }
+      currentType = declaredType.getTypeArguments().getLast();
     }
 
     return depth;
@@ -141,15 +133,13 @@ public class JsonFieldMetadata {
 
     while (currentType instanceof DeclaredType declaredType) {
       String rawType = declaredType.asElement().toString();
-      if (rawType.equals(List.class.getCanonicalName())) {
-        if (!declaredType.getTypeArguments().isEmpty()) {
-          currentType = declaredType.getTypeArguments().getFirst();
-        } else {
-          break;
-        }
-      } else {
+      if (!rawType.equals(List.class.getCanonicalName())) {
         break;
       }
+      if (declaredType.getTypeArguments().isEmpty()) {
+        break;
+      }
+      currentType = declaredType.getTypeArguments().getFirst();
     }
 
     return currentType.toString();

@@ -4,6 +4,7 @@ import com.palantir.javapoet.*;
 import dev.cwby.jasonify.SerializerManager;
 import dev.cwby.jasonify.analyzer.JsonClassMetadata;
 import dev.cwby.jasonify.analyzer.JsonFieldMetadata;
+import dev.cwby.jasonify.annotation.JsonIgnore;
 import dev.cwby.jasonify.processor.JsonAnnotationProcessor;
 import dev.cwby.jasonify.serializer.IJsonSerializer;
 import dev.cwby.jasonify.writer.JsonGenerator;
@@ -77,7 +78,9 @@ public class SerializerCodeGenerator {
     builder.add(startObject());
 
     for (var field : fields) {
-      builder.add(addFieldSerializationCode(field));
+      if (!field.hasAnnotation(JsonIgnore.class)) {
+        builder.add(addFieldSerializationCode(field));
+      }
     }
 
     builder.add(endObject());
@@ -91,7 +94,7 @@ public class SerializerCodeGenerator {
 
   private CodeBlock addFieldSerializationCode(JsonFieldMetadata field) {
     var builder = CodeBlock.builder();
-    builder.addStatement("$L.writeField($S)", generatorVar, field.getName());
+    builder.addStatement("$L.writeField($S)", generatorVar, field.getJsonName());
 
     if (field.isByteArray()) {
       builder.add("$L.writeBase64String($L)", generatorVar, field.getCallable());
@@ -116,7 +119,7 @@ public class SerializerCodeGenerator {
 
   private CodeBlock getInnerBlockForArrayOrList(JsonFieldMetadata field) {
     var builder = CodeBlock.builder();
-    int depth = field.isArray() ? field.getArrayDepth() : field.getCollectionDepth();
+    int depth = field.getDepth();
 
     if (field.isAnnotatedObject()) {
       builder.addStatement(
