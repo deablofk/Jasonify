@@ -128,37 +128,26 @@ public class JsonFieldMetadata {
     return depth;
   }
 
-  public String getInnermostListType() {
-    TypeMirror currentType = field.asType();
-
-    while (currentType instanceof DeclaredType declaredType) {
-      String rawType = declaredType.asElement().toString();
-      if (!rawType.equals(List.class.getCanonicalName())) {
-        break;
-      }
-      if (declaredType.getTypeArguments().isEmpty()) {
-        break;
-      }
-      currentType = declaredType.getTypeArguments().getFirst();
+  public String getInnerMost() {
+    Class<?> classType = null;
+    if (isMap()) {
+      classType = Map.class;
+    } else if (isList()) {
+      classType = List.class;
     }
 
-    return currentType.toString();
+    return getInnerMostType(classType);
   }
 
-  public String getInnerMostMapType() {
+  public String getInnerMostType(Class<?> type) {
     TypeMirror currentType = field.asType();
 
     while (currentType instanceof DeclaredType declaredType) {
       String rawType = declaredType.asElement().toString();
-      if (rawType.equals(Map.class.getCanonicalName())) {
-        if (!declaredType.getTypeArguments().isEmpty()) {
-          currentType = declaredType.getTypeArguments().getLast();
-        } else {
-          break;
-        }
-      } else {
+      if (!rawType.equals(type.getCanonicalName()) || declaredType.getTypeArguments().isEmpty()) {
         break;
       }
+      currentType = declaredType.getTypeArguments().getLast();
     }
 
     return currentType.toString();

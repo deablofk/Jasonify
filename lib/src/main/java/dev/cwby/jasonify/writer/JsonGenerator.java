@@ -15,7 +15,7 @@ public class JsonGenerator {
   }
 
   public JsonGenerator() {
-    this.appendable = new StringBuilder();
+    this.appendable = new StringBuilder(4096);
   }
 
   private boolean isFirst() {
@@ -35,16 +35,25 @@ public class JsonGenerator {
     return this;
   }
 
+  public JsonGenerator append(char c) throws AppendJsonException {
+    try {
+      this.appendable.append(c);
+    } catch (IOException e) {
+      throw new AppendJsonException("Cant append value to the JsonGenerator: " + c);
+    }
+    return this;
+  }
+
   public JsonGenerator writeStartObject() throws AppendJsonException {
     handleComma();
-    append("{");
+    append('{');
     depth++;
     isFirst = true;
     return this;
   }
 
   public JsonGenerator writeEndObject() throws AppendJsonException {
-    append("}");
+    append('}');
     depth--;
     isFirst = depth > 0;
     handleComma();
@@ -53,20 +62,20 @@ public class JsonGenerator {
 
   public JsonGenerator writeStartArray() throws AppendJsonException {
     handleComma();
-    append("[");
+    append('[');
     depth++;
     isFirst = true;
     return this;
   }
 
   public JsonGenerator writeEndArray() throws AppendJsonException {
-    append("]");
+    append(']');
     return this;
   }
 
   public JsonGenerator writeField(String fieldName) throws AppendJsonException {
     handleComma();
-    append("\"").append(fieldName).append("\":");
+    append('\"').append(fieldName).append('\"').append(':');
     depth++;
     isFirst = true;
     return this;
@@ -74,7 +83,7 @@ public class JsonGenerator {
 
   public JsonGenerator writeString(String value) throws AppendJsonException {
     handleComma();
-    append("\"").append(escapeString(value)).append("\"");
+    append('\"').append(escapeString(value)).append('\"');
     return this;
   }
 
@@ -102,7 +111,7 @@ public class JsonGenerator {
 
   private void handleComma() throws AppendJsonException {
     if (!isFirst()) {
-      append(",");
+      append(',');
     } else {
       setFirst();
     }
@@ -116,27 +125,51 @@ public class JsonGenerator {
   public void reset() {
     this.depth = 0;
     this.isFirst = true;
-    if (this.appendable instanceof StringBuilder) {
-      ((StringBuilder) this.appendable).setLength(0);
+    if (this.appendable instanceof StringBuilder stringBuilder) {
+      stringBuilder.setLength(0);
     }
   }
 
   public String escapeString(String content) {
-    var strBuilder = new StringBuilder(content.length());
+    char[] result = new char[content.length() * 2]; // worst case scenario
+    int resultIndex = 0;
 
-    for (char c : content.toCharArray()) {
+    for (int i = 0; i < content.length(); i++) {
+      char c = content.charAt(i);
       switch (c) {
-        case '\"' -> strBuilder.append("\\\"");
-        case '\\' -> strBuilder.append("\\\\");
-        case '\b' -> strBuilder.append("\\b");
-        case '\f' -> strBuilder.append("\\f");
-        case '\n' -> strBuilder.append("\\n");
-        case '\r' -> strBuilder.append("\\r");
-        case '\t' -> strBuilder.append("\\t");
-        default -> strBuilder.append(c);
+        case '\"':
+          result[resultIndex++] = '\\';
+          result[resultIndex++] = '\"';
+          break;
+        case '\\':
+          result[resultIndex++] = '\\';
+          result[resultIndex++] = '\\';
+          break;
+        case '\b':
+          result[resultIndex++] = '\\';
+          result[resultIndex++] = 'b';
+          break;
+        case '\f':
+          result[resultIndex++] = '\\';
+          result[resultIndex++] = 'f';
+          break;
+        case '\n':
+          result[resultIndex++] = '\\';
+          result[resultIndex++] = 'n';
+          break;
+        case '\r':
+          result[resultIndex++] = '\\';
+          result[resultIndex++] = 'r';
+          break;
+        case '\t':
+          result[resultIndex++] = '\\';
+          result[resultIndex++] = 't';
+          break;
+        default:
+          result[resultIndex++] = c;
+          break;
       }
     }
-
-    return strBuilder.toString();
+    return new String(result, 0, resultIndex);
   }
 }

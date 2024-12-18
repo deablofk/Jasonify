@@ -126,9 +126,7 @@ public class SerializerCodeGenerator {
           "$L.writeRaw($T.toJson(v$L))", generatorVar, SerializerManager.class, depth - 1);
     } else {
       String methodType =
-          field.isArray()
-              ? field.getJGString()
-              : field.getMethodForType(field.getInnermostListType());
+          field.isArray() ? field.getJGString() : field.getMethodForType(field.getInnerMost());
       builder.addStatement("$L.$L(v$L)", generatorVar, methodType, depth - 1);
     }
 
@@ -138,7 +136,7 @@ public class SerializerCodeGenerator {
   private CodeBlock getInnerBlockForMap(JsonFieldMetadata field) {
     var builder = CodeBlock.builder();
 
-    if (JsonAnnotationProcessor.annotatedClasses.contains(field.getInnerMostMapType())) {
+    if (JsonAnnotationProcessor.annotatedClasses.contains(field.getInnerMost())) {
       builder.addStatement("$L.writeField(v$L.getKey())", generatorVar, field.getDepth() - 1);
       builder.addStatement(
           "$L.writeRaw($T.toJson(v$L.getValue()))",
@@ -146,7 +144,7 @@ public class SerializerCodeGenerator {
           SerializerManager.class,
           field.getDepth() - 1);
     } else {
-      String methodType = field.getMethodForType(field.getInnerMostMapType());
+      String methodType = field.getMethodForType(field.getInnerMost());
       builder.addStatement("$L.writeField(v$L.getKey())", generatorVar, field.getDepth() - 1);
       builder.addStatement("$L.$L(v$L.getValue())", generatorVar, methodType, field.getDepth() - 1);
     }
@@ -158,9 +156,9 @@ public class SerializerCodeGenerator {
     var builder = CodeBlock.builder();
     builder.add(startArray());
 
-    builder.beginControlFlow("if ($L != null)", instanceName);
+    // builder.beginControlFlow("if ($L != null)", instanceName);
     generateNestedLoops(builder, field.getCallable(), innerBlock, field.getDepth(), 0);
-    builder.endControlFlow();
+    // builder.endControlFlow();
 
     builder.add(endArray());
     return builder.build();
@@ -216,9 +214,9 @@ public class SerializerCodeGenerator {
     var builder = CodeBlock.builder();
     builder.add(startObject());
 
-    builder.beginControlFlow("if ($L != null)", instanceName);
+    // builder.beginControlFlow("if ($L != null)", instanceName);
     generateNestedMap(builder, field.getCallable(), innerBlock, field.getDepth(), 0);
-    builder.endControlFlow();
+    // builder.endControlFlon();
 
     builder.add(endObject());
     return builder.build();
