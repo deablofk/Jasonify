@@ -2,6 +2,7 @@ package dev.cwby.jasonify;
 
 import dev.cwby.jasonify.exception.AOTMapperInitializerException;
 import dev.cwby.jasonify.serializer.IJsonSerializer;
+import dev.cwby.jasonify.writer.JsonGenerator;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,8 +33,8 @@ public class SerializerManager {
     return (IJsonSerializer<T>) SERIALIZER_MAP.get(qualifiedName);
   }
 
-  public static <T> String toJson(T type) {
+  public static <T> void appendToWriter(T type, JsonGenerator jsonGenerator) {
     String qualifiedName = type.getClass().getCanonicalName();
-    return getSerializer(qualifiedName).toJson(type);
+    getSerializer(qualifiedName).appendToWriter(type, jsonGenerator);
   }
 }

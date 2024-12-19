@@ -39,15 +39,6 @@ public class SerializerCodeGenerator {
             .addSuperinterface(
                 ParameterizedTypeName.get(ClassName.get(IJsonSerializer.class), className))
             .addMethod(generateToJsonMethod(jcm.fields(), className))
-            .addField(
-                FieldSpec.builder(
-                        JsonGenerator.class,
-                        generatorVar,
-                        Modifier.PRIVATE,
-                        Modifier.STATIC,
-                        Modifier.FINAL)
-                    .initializer("new $T()", JsonGenerator.class)
-                    .build())
             .build();
     try {
       JavaFile.builder("dev.cwby.jasonify.serializers", typeSpec).build().writeTo(filer);
@@ -60,20 +51,18 @@ public class SerializerCodeGenerator {
     String obj = className.simpleName();
     instanceName = Character.toLowerCase(obj.charAt(0)) + obj.substring(1);
 
-    return MethodSpec.methodBuilder("toJson")
+    return MethodSpec.methodBuilder("appendToWriter")
         .addAnnotation(Override.class)
         .addModifiers(Modifier.PUBLIC)
-        .returns(String.class)
         .addParameter(className, instanceName, Modifier.FINAL)
+        .addParameter(JsonGenerator.class, generatorVar, Modifier.FINAL)
         .addCode(generateSerializationCode(fields))
-        .addStatement("return $L.getJson()", generatorVar)
         .build();
   }
 
   private CodeBlock generateSerializationCode(List<JsonFieldMetadata> fields) {
     var builder = CodeBlock.builder();
 
-    builder.addStatement("$L.reset()", generatorVar);
     builder.beginControlFlow("try");
     builder.add(startObject());
 
@@ -123,7 +112,7 @@ public class SerializerCodeGenerator {
 
     if (field.isAnnotatedObject()) {
       builder.addStatement(
-          "$L.writeRaw($T.toJson(v$L))", generatorVar, SerializerManager.class, depth - 1);
+          "$T.appendToWriter(v$L, $L)", SerializerManager.class, depth - 1, generatorVar);
     } else {
       String methodType =
           field.isArray() ? field.getJGString() : field.getMethodForType(field.getInnerMost());
@@ -139,10 +128,10 @@ public class SerializerCodeGenerator {
     if (JsonAnnotationProcessor.annotatedClasses.contains(field.getInnerMost())) {
       builder.addStatement("$L.writeField(v$L.getKey())", generatorVar, field.getDepth() - 1);
       builder.addStatement(
-          "$L.writeRaw($T.toJson(v$L.getValue()))",
-          generatorVar,
+          "$T.appendToWriter(v$L.getValue(), $L)",
           SerializerManager.class,
-          field.getDepth() - 1);
+          field.getDepth() - 1,
+          generatorVar);
     } else {
       String methodType = field.getMethodForType(field.getInnerMost());
       builder.addStatement("$L.writeField(v$L.getKey())", generatorVar, field.getDepth() - 1);
@@ -192,11 +181,12 @@ public class SerializerCodeGenerator {
     CodeBlock.Builder builder = CodeBlock.builder();
     if (field.isAnnotatedObject()) {
       builder.addStatement(
-          "$L.writeRaw($T.toJson($L.$L))",
-          generatorVar,
+          "$T.appendToWriter($L.$L, $L)",
           SerializerManager.class,
           instanceName,
-          field.getName());
+          field.getName(),
+          generatorVar);
+
     } else {
       builder.addStatement(
           "$L.$L($L.$L)", generatorVar, field.getJGString(), instanceName, field.getCallable());
