@@ -73,7 +73,11 @@ public class JsonGenerator {
 
   public JsonGenerator writeString(String value) {
     handleComma();
-    appendable.append('\"').appendEscaped(value).append('\"');
+    if (value != null) {
+      appendable.append('\"').appendEscaped(value).append('\"');
+    } else {
+      appendable.append("null");
+    }
     return this;
   }
 
