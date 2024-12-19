@@ -18,9 +18,14 @@ public class JsonFieldMetadata {
   private final boolean map;
   private final boolean list;
   private final VariableElement field;
+  private final boolean isRecord;
 
   public JsonFieldMetadata(
-      VariableElement element, boolean isAnnotatedObject, boolean isMap, boolean isList) {
+      VariableElement element,
+      boolean isAnnotatedObject,
+      boolean isMap,
+      boolean isList,
+      boolean isRecord) {
     this.type = element.asType().toString();
     this.name = String.valueOf(element.getSimpleName());
     this.array = element.asType().getKind() == TypeKind.ARRAY;
@@ -29,6 +34,7 @@ public class JsonFieldMetadata {
     this.map = isMap;
     this.list = isList;
     this.field = element;
+    this.isRecord = isRecord;
   }
 
   public List<String> getDeclaredArguments() {
@@ -190,10 +196,18 @@ public class JsonFieldMetadata {
   }
 
   public String getCallable() {
+    if (isRecord) {
+      return getName() + "()";
+    }
+
     return hasGetter() ? getterMethod() : getName();
   }
 
   public boolean isByteArray() {
     return isArray() && getType().replace("[]", "").equals("byte");
+  }
+
+  public boolean isRecord() {
+    return isRecord;
   }
 }

@@ -29,7 +29,7 @@ public class JsonAnnotationProcessor extends AbstractProcessor {
   public boolean process(Set<? extends TypeElement> set, RoundEnvironment re) {
     Set<TypeElement> classesELements =
         re.getElementsAnnotatedWith(Json.class).stream()
-            .filter(el -> el.getKind() == ElementKind.CLASS)
+            .filter(el -> el.getKind() == ElementKind.CLASS || el.getKind() == ElementKind.RECORD)
             .map(TypeElement.class::cast)
             .collect(Collectors.toSet());
 

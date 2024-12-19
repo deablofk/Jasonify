@@ -34,7 +34,11 @@ public class JsonClassAnalyzer {
                     && method.getModifiers().contains(Modifier.PUBLIC));
   }
 
-  private boolean isFieldAccessible(VariableElement el) {
+  private boolean isFieldAccessible(VariableElement el, boolean isRecord) {
+    if (isRecord) {
+      return true;
+    }
+
     return el.getModifiers().contains(Modifier.PUBLIC) || hasPublicGetter(el);
   }
 
@@ -56,10 +60,12 @@ public class JsonClassAnalyzer {
     Types typeUtils = processingEnv.getTypeUtils();
 
     var elements = typeElement.getEnclosedElements();
+    boolean isRecord = typeElement.getKind() == ElementKind.RECORD;
 
     List<VariableElement> variableElements =
         elements.stream()
-            .filter(el -> el.getKind().isField() && isFieldAccessible((VariableElement) el))
+            .filter(
+                el -> el.getKind().isField() && isFieldAccessible((VariableElement) el, isRecord))
             .map(VariableElement.class::cast)
             .toList();
 
@@ -73,7 +79,8 @@ public class JsonClassAnalyzer {
               variableElement,
               isAnnotated,
               isMap(variableElement, elementUtils, typeUtils),
-              isList(variableElement, elementUtils, typeUtils)));
+              isList(variableElement, elementUtils, typeUtils),
+              isRecord));
     }
 
     return new JsonClassMetadata(
