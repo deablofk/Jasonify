@@ -1,21 +1,19 @@
 package dev.cwby.jasonify.writer;
 
-import dev.cwby.jasonify.exception.AppendJsonException;
-import java.io.IOException;
 import java.util.Base64;
 
 public class JsonGenerator {
-  private final Appendable appendable;
+  private final FastStringBuilder appendable;
   private static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder();
   private int depth = 0;
   private boolean isFirst = true;
 
-  public JsonGenerator(final Appendable appendable) {
+  public JsonGenerator(final FastStringBuilder appendable) {
     this.appendable = appendable;
   }
 
   public JsonGenerator() {
-    this.appendable = new StringBuilder(4096);
+    this.appendable = new FastStringBuilder(1000);
   }
 
   private boolean isFirst() {
@@ -26,25 +24,17 @@ public class JsonGenerator {
     isFirst = false;
   }
 
-  public JsonGenerator append(String str) throws AppendJsonException {
-    try {
-      this.appendable.append(str);
-    } catch (IOException e) {
-      throw new AppendJsonException("Cant append value to the JsonGenerator: " + str);
-    }
+  public JsonGenerator append(String str) {
+    this.appendable.append(str);
     return this;
   }
 
-  public JsonGenerator append(char c) throws AppendJsonException {
-    try {
-      this.appendable.append(c);
-    } catch (IOException e) {
-      throw new AppendJsonException("Cant append value to the JsonGenerator: " + c);
-    }
+  public JsonGenerator append(char c) {
+    this.appendable.append(c);
     return this;
   }
 
-  public JsonGenerator writeStartObject() throws AppendJsonException {
+  public JsonGenerator writeStartObject() {
     handleComma();
     append('{');
     depth++;
@@ -52,7 +42,7 @@ public class JsonGenerator {
     return this;
   }
 
-  public JsonGenerator writeEndObject() throws AppendJsonException {
+  public JsonGenerator writeEndObject() {
     append('}');
     depth--;
     isFirst = depth > 0;
@@ -60,7 +50,7 @@ public class JsonGenerator {
     return this;
   }
 
-  public JsonGenerator writeStartArray() throws AppendJsonException {
+  public JsonGenerator writeStartArray() {
     handleComma();
     append('[');
     depth++;
@@ -68,12 +58,12 @@ public class JsonGenerator {
     return this;
   }
 
-  public JsonGenerator writeEndArray() throws AppendJsonException {
+  public JsonGenerator writeEndArray() {
     append(']');
     return this;
   }
 
-  public JsonGenerator writeField(String fieldName) throws AppendJsonException {
+  public JsonGenerator writeField(String fieldName) {
     handleComma();
     append('\"').append(fieldName).append('\"').append(':');
     depth++;
@@ -81,35 +71,35 @@ public class JsonGenerator {
     return this;
   }
 
-  public JsonGenerator writeString(String value) throws AppendJsonException {
+  public JsonGenerator writeString(String value) {
     handleComma();
-    append('\"').append(escapeString(value)).append('\"');
+    appendable.append('\"').appendEscaped(value).append('\"');
     return this;
   }
 
-  public JsonGenerator writeBoolean(boolean value) throws AppendJsonException {
+  public JsonGenerator writeBoolean(boolean value) {
     handleComma();
     append(String.valueOf(value));
     return this;
   }
 
-  public JsonGenerator writeNumber(Number value) throws AppendJsonException {
+  public JsonGenerator writeNumber(Number value) {
     handleComma();
     append(value.toString());
     return this;
   }
 
-  public JsonGenerator writeRaw(String raw) throws AppendJsonException {
+  public JsonGenerator writeRaw(String raw) {
     handleComma();
     append(raw);
     return this;
   }
 
-  public JsonGenerator writeBase64String(byte[] bytes) throws AppendJsonException {
+  public JsonGenerator writeBase64String(byte[] bytes) {
     return writeString(BASE64_ENCODER.encodeToString(bytes));
   }
 
-  private void handleComma() throws AppendJsonException {
+  private void handleComma() {
     if (!isFirst()) {
       append(',');
     } else {
@@ -125,51 +115,8 @@ public class JsonGenerator {
   public void reset() {
     this.depth = 0;
     this.isFirst = true;
-    if (this.appendable instanceof StringBuilder stringBuilder) {
-      stringBuilder.setLength(0);
+    if (this.appendable instanceof FastStringBuilder fastStringBuilder) {
+      fastStringBuilder.setLength(0);
     }
-  }
-
-  public String escapeString(String content) {
-    char[] result = new char[content.length() * 2]; // worst case scenario
-    int resultIndex = 0;
-
-    for (int i = 0; i < content.length(); i++) {
-      char c = content.charAt(i);
-      switch (c) {
-        case '\"':
-          result[resultIndex++] = '\\';
-          result[resultIndex++] = '\"';
-          break;
-        case '\\':
-          result[resultIndex++] = '\\';
-          result[resultIndex++] = '\\';
-          break;
-        case '\b':
-          result[resultIndex++] = '\\';
-          result[resultIndex++] = 'b';
-          break;
-        case '\f':
-          result[resultIndex++] = '\\';
-          result[resultIndex++] = 'f';
-          break;
-        case '\n':
-          result[resultIndex++] = '\\';
-          result[resultIndex++] = 'n';
-          break;
-        case '\r':
-          result[resultIndex++] = '\\';
-          result[resultIndex++] = 'r';
-          break;
-        case '\t':
-          result[resultIndex++] = '\\';
-          result[resultIndex++] = 't';
-          break;
-        default:
-          result[resultIndex++] = c;
-          break;
-      }
-    }
-    return new String(result, 0, resultIndex);
   }
 }

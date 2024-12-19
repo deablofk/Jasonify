@@ -37,4 +37,11 @@ public class SerializerManager {
     String qualifiedName = type.getClass().getCanonicalName();
     getSerializer(qualifiedName).appendToWriter(type, jsonGenerator);
   }
+
+  public static <T> String toJson(T type) {
+    JsonGenerator jsonGenerator = new JsonGenerator();
+    String qualifiedName = type.getClass().getCanonicalName();
+    getSerializer(qualifiedName).appendToWriter(type, jsonGenerator);
+    return jsonGenerator.getJson();
+  }
 }

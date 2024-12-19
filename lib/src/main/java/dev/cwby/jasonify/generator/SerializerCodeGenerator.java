@@ -63,20 +63,13 @@ public class SerializerCodeGenerator {
   private CodeBlock generateSerializationCode(List<JsonFieldMetadata> fields) {
     var builder = CodeBlock.builder();
 
-    builder.beginControlFlow("try");
     builder.add(startObject());
-
     for (var field : fields) {
       if (!field.hasAnnotation(JsonIgnore.class)) {
         builder.add(addFieldSerializationCode(field));
       }
     }
-
     builder.add(endObject());
-    builder.endControlFlow();
-    builder.beginControlFlow("catch (Exception e)");
-    builder.addStatement("e.printStackTrace()");
-    builder.endControlFlow();
 
     return builder.build();
   }
@@ -145,9 +138,9 @@ public class SerializerCodeGenerator {
     var builder = CodeBlock.builder();
     builder.add(startArray());
 
-    // builder.beginControlFlow("if ($L != null)", instanceName);
+    builder.beginControlFlow("if ($L != null)", instanceName);
     generateNestedLoops(builder, field.getCallable(), innerBlock, field.getDepth(), 0);
-    // builder.endControlFlow();
+    builder.endControlFlow();
 
     builder.add(endArray());
     return builder.build();
@@ -204,9 +197,9 @@ public class SerializerCodeGenerator {
     var builder = CodeBlock.builder();
     builder.add(startObject());
 
-    // builder.beginControlFlow("if ($L != null)", instanceName);
+    builder.beginControlFlow("if ($L != null)", instanceName);
     generateNestedMap(builder, field.getCallable(), innerBlock, field.getDepth(), 0);
-    // builder.endControlFlon();
+    builder.endControlFlow();
 
     builder.add(endObject());
     return builder.build();
