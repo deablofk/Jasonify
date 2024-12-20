@@ -2,6 +2,7 @@ package dev.cwby.jasonify.generator;
 
 import com.palantir.javapoet.*;
 import dev.cwby.jasonify.SerializerManager;
+import dev.cwby.jasonify.analyzer.ClassUtils;
 import dev.cwby.jasonify.analyzer.JsonClassMetadata;
 import dev.cwby.jasonify.analyzer.JsonFieldMetadata;
 import dev.cwby.jasonify.annotation.JsonIgnore;
@@ -32,7 +33,7 @@ public class SerializerCodeGenerator {
   }
 
   public void writeClass(JsonClassMetadata jcm) {
-    ClassName className = getClassName(jcm.qualifiedName());
+    ClassName className = ClassUtils.getClassName(jcm.qualifiedName());
     var typeSpec =
         TypeSpec.classBuilder(jcm.simpleName() + "$$JasonifySerializer")
             .addModifiers(Modifier.PUBLIC)
@@ -185,12 +186,6 @@ public class SerializerCodeGenerator {
           "$L.$L($L.$L)", generatorVar, field.getJGString(), instanceName, field.getCallable());
     }
     return builder.build();
-  }
-
-  private ClassName getClassName(String qualifiedName) {
-    String packageType = qualifiedName.substring(0, qualifiedName.lastIndexOf("."));
-    String type = qualifiedName.substring(qualifiedName.lastIndexOf(".") + 1);
-    return ClassName.get(packageType, type);
   }
 
   private CodeBlock generateMapLoop(JsonFieldMetadata field, CodeBlock innerBlock) {

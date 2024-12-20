@@ -84,6 +84,10 @@ public class JsonClassAnalyzer {
     }
 
     return new JsonClassMetadata(
-        typeElement.getSimpleName().toString(), typeElement.getQualifiedName().toString(), fields);
+        typeElement.getSimpleName().toString(),
+        typeElement.getQualifiedName().toString(),
+        fields,
+        true,
+        true);
   }
 }

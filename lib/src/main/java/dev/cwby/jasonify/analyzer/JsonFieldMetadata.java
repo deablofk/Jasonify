@@ -210,4 +210,8 @@ public class JsonFieldMetadata {
   public boolean isRecord() {
     return isRecord;
   }
+
+  public boolean hasSetter() {
+    return false;
+  }
 }

@@ -5,6 +5,7 @@ import dev.cwby.jasonify.analyzer.JsonClassAnalyzer;
 import dev.cwby.jasonify.analyzer.JsonClassMetadata;
 import dev.cwby.jasonify.annotation.Json;
 import dev.cwby.jasonify.generator.AutoRegisterCodeGenerator;
+import dev.cwby.jasonify.generator.DeserializerCodeGenerator;
 import dev.cwby.jasonify.generator.SerializerCodeGenerator;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -45,6 +46,7 @@ public class JsonAnnotationProcessor extends AbstractProcessor {
 
     if (re.processingOver()) {
       new SerializerCodeGenerator("jg", jsonClassMetadataList, processingEnv.getFiler()).write();
+      new DeserializerCodeGenerator(jsonClassMetadataList, processingEnv.getFiler()).write();
       new AutoRegisterCodeGenerator(jsonClassMetadataList, processingEnv.getFiler()).write();
     }
 

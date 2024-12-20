@@ -24,22 +24,33 @@ public class AutoRegisterCodeGenerator {
     var staticBlock = CodeBlock.builder();
 
     for (JsonClassMetadata jcm : jsonClassMetadata) {
-      var className =
-          ClassName.get(
-              "dev.cwby.jasonify.serializers", jcm.simpleName() + "$$JasonifySerializer");
-      staticBlock.addStatement(
-          "registerSerializer($S, new $T())", jcm.qualifiedName(), className);
+      if (jcm.serialize()) {
+        var className =
+            ClassName.get(
+                "dev.cwby.jasonify.serializers", jcm.simpleName() + "$$JasonifySerializer");
+        staticBlock.addStatement(
+            "$T.registerSerializer($S, new $T())",
+            SerializerManager.class,
+            jcm.qualifiedName(),
+            className);
+      }
+      if (jcm.deserialize()) {
+        var className =
+            ClassName.get(
+                "dev.cwby.jasonify.deserializers", jcm.simpleName() + "$$JasonifyDeserializer");
+        staticBlock.addStatement(
+            "$T.registerDeserializer($S, new $T())",
+            SerializerManager.class,
+            jcm.qualifiedName(),
+            className);
+      }
     }
 
     var typeSpec =
         TypeSpec.classBuilder("AOTMapperInitializer").addStaticBlock(staticBlock.build()).build();
 
     try {
-
-      JavaFile.builder("dev.cwby.jasonify.initializer", typeSpec)
-          .addStaticImport(SerializerManager.class, "*")
-          .build()
-          .writeTo(filer);
+      JavaFile.builder("dev.cwby.jasonify.initializer", typeSpec).build().writeTo(filer);
     } catch (IOException e) {
       System.out.println("cantwrite: " + e.getMessage());
     }
