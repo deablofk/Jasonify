@@ -214,4 +214,16 @@ public class JsonFieldMetadata {
   public boolean hasSetter() {
     return false;
   }
+
+  public String getDeserializationMethod() {
+    return switch (type.replace("[]", "")) {
+      case "java.lang.Character", "java.lang.String" -> "getCurrentValue";
+      case "byte", "java.lang.Byte" -> "un";
+      case "boolean", "java.lang.Boolean" -> "getCurrentValueBoolean";
+      case "int", "java.lang.Integer" -> "getCurrentValueInteger";
+      case "double", "java.lang.Double" -> "getCurrentValueDouble";
+      case "float", "java.lang.Float" -> "getCurrentValueFloat";
+      default -> throw new IllegalStateException("Unexpected value: " + type);
+    };
+  }
 }

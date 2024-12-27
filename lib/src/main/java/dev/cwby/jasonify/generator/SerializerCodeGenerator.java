@@ -139,7 +139,7 @@ public class SerializerCodeGenerator {
     var builder = CodeBlock.builder();
     builder.add(startArray());
 
-    builder.beginControlFlow("if ($L != null)", instanceName);
+    builder.beginControlFlow("if ($L.$L != null)", instanceName, field.getCallable());
     generateNestedLoops(builder, field.getCallable(), innerBlock, field.getDepth(), 0);
     builder.endControlFlow();
 
@@ -192,7 +192,7 @@ public class SerializerCodeGenerator {
     var builder = CodeBlock.builder();
     builder.add(startObject());
 
-    builder.beginControlFlow("if ($L != null)", instanceName);
+    builder.beginControlFlow("if ($L.$L != null)", instanceName, field.getCallable());
     generateNestedMap(builder, field.getCallable(), innerBlock, field.getDepth(), 0);
     builder.endControlFlow();
 

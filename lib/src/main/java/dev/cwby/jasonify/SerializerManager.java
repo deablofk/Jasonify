@@ -5,6 +5,7 @@ import dev.cwby.jasonify.reader.JsonParser;
 import dev.cwby.jasonify.serializer.IJsonDeserializer;
 import dev.cwby.jasonify.serializer.IJsonSerializer;
 import dev.cwby.jasonify.writer.JsonGenerator;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -58,8 +59,9 @@ public class SerializerManager {
     return jsonGenerator.getJson();
   }
 
-  public static <T> T fromJson(String json, Class<T> clazz) {
+  public static <T> T fromJson(String json, Class<T> clazz) throws IOException {
+    var parser = new JsonParser(json);
     IJsonDeserializer<T> deserializer = getDeserializer(clazz.getCanonicalName());
-    return deserializer.parseJson(JsonParser.parse(json));
+    return deserializer.parseJson(parser);
   }
 }

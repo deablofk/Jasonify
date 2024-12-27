@@ -60,6 +60,8 @@ public class JsonGenerator {
 
   public JsonGenerator writeEndArray() {
     append(']');
+    depth--;
+    isFirst = false;
     return this;
   }
 

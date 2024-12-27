@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.*;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
@@ -54,6 +55,20 @@ public class JsonClassAnalyzer {
         typeUtils.erasure(variableElement.asType()), typeUtils.erasure(mapType));
   }
 
+  public String getInnerMostType(Class<?> type, VariableElement field) {
+    TypeMirror currentType = field.asType();
+
+    while (currentType instanceof DeclaredType declaredType) {
+      String rawType = declaredType.asElement().toString();
+      if (!rawType.equals(type.getCanonicalName()) || declaredType.getTypeArguments().isEmpty()) {
+        break;
+      }
+      currentType = declaredType.getTypeArguments().getLast();
+    }
+
+    return currentType.toString();
+  }
+
   public JsonClassMetadata processClass(
       TypeElement typeElement, Set<String> annotatedClasses, ProcessingEnvironment processingEnv) {
     Elements elementUtils = processingEnv.getElementUtils();
@@ -74,13 +89,27 @@ public class JsonClassAnalyzer {
       boolean isAnnotated =
           annotatedClasses.contains(variableElement.asType().toString().replace("[]", ""));
 
-      fields.add(
-          new JsonFieldMetadata(
-              variableElement,
-              isAnnotated,
-              isMap(variableElement, elementUtils, typeUtils),
-              isList(variableElement, elementUtils, typeUtils),
-              isRecord));
+      boolean isList = isList(variableElement, elementUtils, typeUtils);
+      boolean isMap = isMap(variableElement, elementUtils, typeUtils);
+
+      Class<?> type = null;
+      if (isList) {
+        type = List.class;
+      } else if (isMap) {
+        type = Map.class;
+      }
+
+      String innerMostType = type == null ? null : getInnerMostType(type, variableElement);
+
+      if (!isAnnotated && annotatedClasses.contains(innerMostType)) {
+        System.out.println("changing annotated object value");
+        isAnnotated = true;
+      }
+
+      var fieldMetadata =
+          new JsonFieldMetadata(variableElement, isAnnotated, isMap, isList, isRecord);
+
+      fields.add(fieldMetadata);
     }
 
     return new JsonClassMetadata(
