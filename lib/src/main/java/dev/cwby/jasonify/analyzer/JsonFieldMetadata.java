@@ -1,8 +1,10 @@
 package dev.cwby.jasonify.analyzer;
 
+import com.palantir.javapoet.ClassName;
 import dev.cwby.jasonify.annotation.JsonName;
 import java.util.List;
 import java.util.Map;
+import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -225,5 +227,16 @@ public class JsonFieldMetadata {
       case "float", "java.lang.Float" -> "getCurrentValueFloat";
       default -> throw new IllegalStateException("Unexpected value: " + type);
     };
+  }
+
+  public ClassName getGenericTypeList() {
+    TypeMirror typeMirror = ((DeclaredType) field.asType()).getTypeArguments().getFirst();
+
+    if (typeMirror instanceof DeclaredType declaredType) {
+      TypeElement typeElement = (TypeElement) declaredType.asElement();
+      return ClassName.get(typeElement);
+    }
+
+    throw new IllegalArgumentException("Unsupported type: " + typeMirror);
   }
 }

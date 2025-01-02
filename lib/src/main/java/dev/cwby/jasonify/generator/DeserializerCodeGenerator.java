@@ -10,6 +10,7 @@ import dev.cwby.jasonify.reader.JsonParser;
 import dev.cwby.jasonify.reader.JsonToken;
 import dev.cwby.jasonify.serializer.IJsonDeserializer;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.Modifier;
@@ -18,7 +19,6 @@ public class DeserializerCodeGenerator {
 
   private final List<JsonClassMetadata> jsonClassMetadata;
   private final Filer filer;
-  private String instanceName;
 
   public DeserializerCodeGenerator(List<JsonClassMetadata> jsonClassMetadata, Filer filer) {
     this.jsonClassMetadata = jsonClassMetadata;
@@ -46,33 +46,47 @@ public class DeserializerCodeGenerator {
   }
 
   public MethodSpec generateParseJsonMethod(JsonClassMetadata jcm, ClassName className) {
-    String obj = className.simpleName();
-    instanceName = Character.toLowerCase(obj.charAt(0)) + obj.substring(1);
-
     return MethodSpec.methodBuilder("parseJson")
         .addAnnotation(Override.class)
         .addModifiers(Modifier.PUBLIC)
         .returns(className)
         .addParameter(JsonParser.class, "parser", Modifier.FINAL)
         .addException(IOException.class)
+        .addCode(validateOrSkipChildren())
         .addStatement("var instance = new $T()", className)
         .addCode(generateDeserializationCode(jcm))
         .addStatement("return instance")
         .build();
   }
 
+  private CodeBlock validateOrSkipChildren() {
+    var builder = CodeBlock.builder();
+
+    builder.beginControlFlow("if (parser.getCurrentToken() == null)");
+    builder.addStatement("parser.nextToken()");
+    builder.endControlFlow();
+
+    builder.beginControlFlow(
+        "if (parser.getCurrentToken() != JsonToken.$L)", JsonToken.START_OBJECT);
+    builder.addStatement("parser.skipChildren()");
+    builder.addStatement("return null");
+    builder.endControlFlow();
+
+    return builder.build();
+  }
+
   private CodeBlock generateDeserializationCode(JsonClassMetadata jcm) {
     var builder = CodeBlock.builder();
-    builder.beginControlFlow("while (parser.nextToken() != $T.END_DOCUMENT)", JsonToken.class);
-    builder.beginControlFlow("if (parser.getCurrentValue() != null)");
 
+    builder.beginControlFlow("while (parser.nextToken() != $T.END_OBJECT)", JsonToken.class);
+    builder.beginControlFlow("if (parser.getCurrentValue() != null)");
     builder.beginControlFlow("switch (parser.getCurrentValue())");
 
     for (var field : jcm.fields()) {
       if (!field.hasAnnotation(JsonIgnore.class)) {
-        builder.beginControlFlow("case $S:", field.getName());
+        builder.add("case $S:\n$>", field.getName());
         builder.add(addFieldDeserialization(field));
-        builder.endControlFlow("break");
+        builder.add("break;$<\n");
       }
     }
 
@@ -82,23 +96,11 @@ public class DeserializerCodeGenerator {
     return builder.build();
   }
 
-  private ClassName getClassNameOrPrimitive(JsonFieldMetadata jfm) {
-    ClassName className;
-    String type = jfm.getType();
-    try {
-      String packagePath = type.substring(0, type.lastIndexOf('.'));
-      String simpleName = type.substring(type.lastIndexOf('.') + 1);
-      className = ClassName.get(packagePath, simpleName);
-    } catch (Exception e) {
-      className = ClassName.get("", type);
-    }
-    return className;
-  }
-
   private CodeBlock addFieldDeserialization(JsonFieldMetadata field) {
     var builder = CodeBlock.builder();
     if (field.isList()) {
       builder.addStatement("// list");
+      builder.add(generateArraySerialization(field));
     } else if (field.isArray()) {
       builder.addStatement("// array");
     } else if (field.isMap()) {
@@ -120,11 +122,13 @@ public class DeserializerCodeGenerator {
     int depth = field.getDepth();
 
     if (field.isAnnotatedObject()) {
-      builder.addStatement("$T.appendToWriter(v$L)", SerializerManager.class, depth - 1);
+      builder.addStatement(
+          "list$L.add($T.fromJson(parser, $T.class))",
+          depth - 1,
+          SerializerManager.class,
+          field.getGenericTypeList());
     } else {
-      String methodType =
-          field.isArray() ? field.getJGString() : field.getMethodForType(field.getInnerMost());
-      builder.addStatement("$L(v$L)", methodType, depth - 1);
+      builder.addStatement("list$L.add(parser.getCurrentValue())", depth - 1);
     }
 
     return builder.build();
@@ -133,10 +137,13 @@ public class DeserializerCodeGenerator {
   private CodeBlock generateForLoop(JsonFieldMetadata field, CodeBlock innerBlock) {
     var builder = CodeBlock.builder();
 
-    builder.beginControlFlow("if ($L != null)", instanceName);
-    generateNestedLoops(builder, field.getCallable(), innerBlock, field.getDepth(), 0);
+    builder.beginControlFlow(
+        "if (parser.getCurrentToken() == JsonToken.$L)", JsonToken.START_ARRAY);
+    generateNestedLoops(builder, field.getCallable(), innerBlock, field, field.getDepth(), 0);
     builder.endControlFlow();
-
+    builder.beginControlFlow("else");
+    builder.addStatement("instance.$L = null", field.getName());
+    builder.endControlFlow();
     return builder.build();
   }
 
@@ -144,21 +151,19 @@ public class DeserializerCodeGenerator {
       CodeBlock.Builder builder,
       String callable,
       CodeBlock innerBlock,
+      JsonFieldMetadata field,
       int depth,
       int currentDepth) {
-    String loopVar = "v" + currentDepth;
-    if (currentDepth > 0) {
-      builder.beginControlFlow("for(var $L : v$L)", loopVar, currentDepth - 1);
-    } else {
-      builder.beginControlFlow("for(var $L : $L.$L)", loopVar, instanceName, callable);
-    }
+    builder.addStatement("$L list$L = new $T<>()", field.getType(), currentDepth, ArrayList.class);
+    builder.beginControlFlow("while (parser.nextToken() != JsonToken.$L)", JsonToken.END_ARRAY);
 
     if (currentDepth + 1 < depth) {
-      generateNestedLoops(builder, callable, innerBlock, depth, currentDepth + 1);
+      generateNestedLoops(builder, callable, innerBlock, field, depth, currentDepth + 1);
     } else {
       builder.add(innerBlock);
     }
 
     builder.endControlFlow();
+    builder.addStatement("instance.$L = list$L", callable, currentDepth);
   }
 }

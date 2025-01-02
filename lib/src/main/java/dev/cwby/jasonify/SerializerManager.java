@@ -61,6 +61,10 @@ public class SerializerManager {
 
   public static <T> T fromJson(String json, Class<T> clazz) throws IOException {
     var parser = new JsonParser(json);
+    return fromJson(parser, clazz);
+  }
+
+  public static <T> T fromJson(JsonParser parser, Class<T> clazz) throws IOException {
     IJsonDeserializer<T> deserializer = getDeserializer(clazz.getCanonicalName());
     return deserializer.parseJson(parser);
   }
