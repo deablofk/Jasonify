@@ -9,6 +9,7 @@ import dev.cwby.jasonify.annotation.JsonIgnore;
 import dev.cwby.jasonify.reader.JsonParser;
 import dev.cwby.jasonify.reader.JsonToken;
 import dev.cwby.jasonify.serializer.IJsonDeserializer;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,27 +53,11 @@ public class DeserializerCodeGenerator {
         .returns(className)
         .addParameter(JsonParser.class, "parser", Modifier.FINAL)
         .addException(IOException.class)
-        .addCode(validateOrSkipChildren())
+        .addStatement("parser.skipNulltoken()")
         .addStatement("var instance = new $T()", className)
         .addCode(generateDeserializationCode(jcm))
         .addStatement("return instance")
         .build();
-  }
-
-  private CodeBlock validateOrSkipChildren() {
-    var builder = CodeBlock.builder();
-
-    builder.beginControlFlow("if (parser.getCurrentToken() == null)");
-    builder.addStatement("parser.nextToken()");
-    builder.endControlFlow();
-
-    builder.beginControlFlow(
-        "if (parser.getCurrentToken() != JsonToken.$L)", JsonToken.START_OBJECT);
-    builder.addStatement("parser.skipChildren()");
-    builder.addStatement("return null");
-    builder.endControlFlow();
-
-    return builder.build();
   }
 
   private CodeBlock generateDeserializationCode(JsonClassMetadata jcm) {
@@ -89,6 +74,10 @@ public class DeserializerCodeGenerator {
         builder.add("break;$<\n");
       }
     }
+    builder.add("default:\n$>");
+    builder.addStatement("parser.nextToken()");
+    builder.addStatement("parser.skipOrSkipChildren(true)");
+    builder.add("break;$<\n");
 
     builder.endControlFlow();
     builder.endControlFlow();
@@ -99,16 +88,23 @@ public class DeserializerCodeGenerator {
   private CodeBlock addFieldDeserialization(JsonFieldMetadata field) {
     var builder = CodeBlock.builder();
     if (field.isList()) {
-      builder.addStatement("// list");
+      builder.addStatement("parser.nextToken()");
       builder.add(generateArraySerialization(field));
     } else if (field.isArray()) {
       builder.addStatement("// array");
+      builder.addStatement("parser.nextToken()");
+      builder.add(generateArraySerialization(field));
+      //      builder.addStatement("parser.skipOrSkipChildren(true)");
     } else if (field.isMap()) {
       builder.addStatement("// map");
-    } else {
       builder.addStatement("parser.nextToken()");
+      builder.addStatement("parser.skipOrSkipChildren(true)");
+    } else {
+      builder.beginControlFlow(
+          "if (parser.nextToken() == JsonToken.$L)", field.getDeserializationToken());
       builder.addStatement(
           "instance.$L = parser.$L()", field.getName(), field.getDeserializationMethod());
+      builder.endControlFlow();
     }
     return builder.build();
   }
@@ -122,11 +118,30 @@ public class DeserializerCodeGenerator {
     int depth = field.getDepth();
 
     if (field.isAnnotatedObject()) {
-      builder.addStatement(
-          "list$L.add($T.fromJson(parser, $T.class))",
-          depth - 1,
-          SerializerManager.class,
-          field.getGenericTypeList());
+      String type = field.getInnerMost();
+      ClassName className = field.getClassNameForType(type);
+
+      builder.beginControlFlow("if (parser.getCurrentToken() == JsonToken.START_OBJECT)");
+      if (field.isArray()) {
+        String arrayType = field.getType().replace("[", "").replace("]", "");
+        ClassName arrayClassName = field.getClassNameForType(arrayType);
+
+        builder.addStatement(
+            "list$L.add($T.fromJson(parser, $T.class))",
+            depth - 1,
+            SerializerManager.class,
+            arrayClassName);
+      } else {
+        builder.addStatement(
+            "list$L.add($T.fromJson(parser, $T.class))",
+            depth - 1,
+            SerializerManager.class,
+            className);
+      }
+      builder.endControlFlow();
+      builder.beginControlFlow("else");
+      builder.addStatement("parser.skipOrSkipChildren(true)");
+      builder.endControlFlow();
     } else {
       builder.addStatement("list$L.add(parser.getCurrentValue())", depth - 1);
     }
@@ -136,14 +151,7 @@ public class DeserializerCodeGenerator {
 
   private CodeBlock generateForLoop(JsonFieldMetadata field, CodeBlock innerBlock) {
     var builder = CodeBlock.builder();
-
-    builder.beginControlFlow(
-        "if (parser.getCurrentToken() == JsonToken.$L)", JsonToken.START_ARRAY);
     generateNestedLoops(builder, field.getCallable(), innerBlock, field, field.getDepth(), 0);
-    builder.endControlFlow();
-    builder.beginControlFlow("else");
-    builder.addStatement("instance.$L = null", field.getName());
-    builder.endControlFlow();
     return builder.build();
   }
 
@@ -154,7 +162,16 @@ public class DeserializerCodeGenerator {
       JsonFieldMetadata field,
       int depth,
       int currentDepth) {
-    builder.addStatement("$L list$L = new $T<>()", field.getType(), currentDepth, ArrayList.class);
+    String type = field.getTypeForDepth(currentDepth);
+    TypeName className = field.getClassnameWithGenerics(type);
+    builder.beginControlFlow(
+        "if (parser.getCurrentToken() == JsonToken.$L)", JsonToken.START_ARRAY);
+    if (field.isArray()) {
+      TypeName listTypeByArray = field.convertArrayToList(type);
+      builder.addStatement("$L list$L = new $T<>()", type, currentDepth, ArrayList.class);
+    } else {
+      builder.addStatement("$T list$L = new $T<>()", className, currentDepth, ArrayList.class);
+    }
     builder.beginControlFlow("while (parser.nextToken() != JsonToken.$L)", JsonToken.END_ARRAY);
 
     if (currentDepth + 1 < depth) {
@@ -164,6 +181,21 @@ public class DeserializerCodeGenerator {
     }
 
     builder.endControlFlow();
-    builder.addStatement("instance.$L = list$L", callable, currentDepth);
+    if (currentDepth > 0) {
+      builder.addStatement("list$L.add(list$L)", currentDepth - 1, currentDepth);
+    } else {
+      if (field.isArray()) {
+        String arrayType = field.getType().replaceFirst("\\[]", "[0]");
+        ClassName arrayClassName = field.getClassNameForType(arrayType);
+        builder.addStatement(
+            "instance.$L = list$L.toArray(new $L)", callable, currentDepth, arrayClassName);
+      } else {
+        builder.addStatement("instance.$L = list$L", callable, currentDepth);
+      }
+    }
+    builder.endControlFlow();
+    builder.beginControlFlow("else");
+    builder.addStatement("parser.skipOrSkipChildren(true)");
+    builder.endControlFlow();
   }
 }

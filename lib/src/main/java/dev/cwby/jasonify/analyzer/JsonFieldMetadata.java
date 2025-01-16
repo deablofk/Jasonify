@@ -1,11 +1,19 @@
 package dev.cwby.jasonify.analyzer;
 
 import com.palantir.javapoet.ClassName;
+import com.palantir.javapoet.ParameterizedTypeName;
+import com.palantir.javapoet.TypeName;
+
 import dev.cwby.jasonify.annotation.JsonName;
+import dev.cwby.jasonify.reader.JsonToken;
+
+import java.lang.reflect.ParameterizedType;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
@@ -229,6 +237,18 @@ public class JsonFieldMetadata {
     };
   }
 
+  public String getDeserializationToken() {
+    return switch (type.replace("[]", "")) {
+      case "java.lang.Character", "java.lang.String" -> "VALUE_STRING";
+      case "byte", "java.lang.Byte" -> "VALUE_STRING";
+      case "boolean", "java.lang.Boolean" -> "VALUE_BOOLEAN";
+      case "int", "java.lang.Integer" -> "VALUE_NUMBER";
+      case "double", "java.lang.Double" -> "VALUE_NUMBER";
+      case "float", "java.lang.Float" -> "VALUE_NUMBER";
+      default -> throw new IllegalStateException("Unexpected value: " + type);
+    };
+  }
+
   public ClassName getGenericTypeList() {
     TypeMirror typeMirror = ((DeclaredType) field.asType()).getTypeArguments().getFirst();
 
@@ -238,5 +258,106 @@ public class JsonFieldMetadata {
     }
 
     throw new IllegalArgumentException("Unsupported type: " + typeMirror);
+  }
+
+  public String getTypeForDepth(int depth) {
+    TypeMirror currentType = field.asType();
+    //    for (int i = 0;
+    //        i < depth
+    //            && currentType instanceof DeclaredType declaredType
+    //            && !declaredType.getTypeArguments().isEmpty();
+    //        i++) {
+    //      currentType = declaredType.getTypeArguments().getFirst();
+    //    }
+
+    for (int i = 0; i < depth; i++) {
+      if (currentType instanceof DeclaredType declaredType
+          && !declaredType.getTypeArguments().isEmpty()) {
+        currentType = declaredType.getTypeArguments().get(0);
+      } else if (currentType instanceof ArrayType arrayType) {
+        currentType = arrayType.getComponentType();
+      } else {
+        break;
+      }
+    }
+
+    return currentType.toString();
+  }
+
+  public TypeName getClassnameWithGenerics(String type) {
+    int genericStart = type.indexOf("<");
+    if (genericStart == -1) {
+      return getClassNameForType(type);
+    }
+
+    String base = type.substring(0, genericStart);
+    ClassName baseClassName = getClassNameForType(base);
+
+    int genericEnd = type.lastIndexOf(">");
+    String generics = type.substring(genericStart + 1, genericEnd);
+    String[] genericTypes = splitGenerics(generics);
+
+    TypeName[] typeArguments = new TypeName[genericTypes.length];
+    for (int i = 0; i < genericTypes.length; i++) {
+      typeArguments[i] = getClassnameWithGenerics(genericTypes[i].trim());
+    }
+
+    return ParameterizedTypeName.get(baseClassName, typeArguments);
+  }
+
+  public String[] splitGenerics(String generics) {
+    List<String> result = new ArrayList<>();
+    int depth = 0;
+    var builder = new StringBuilder();
+
+    for (char c : generics.toCharArray()) {
+      if (c == ',' && depth == 0) {
+        result.add(builder.toString().trim());
+        builder.setLength(0);
+      } else {
+        if (c == '<') {
+          depth++;
+        }
+        if (c == '>') {
+          depth--;
+        }
+        builder.append(c);
+      }
+    }
+    result.add(builder.toString().trim());
+    return result.toArray(new String[0]);
+  }
+
+  public ClassName getClassNameForType(String type) {
+    int index = type.lastIndexOf(".");
+    if (index == -1) {
+      throw new IllegalArgumentException("must include package for type");
+    }
+
+    String path = type.substring(0, index);
+    String className = type.substring(index + 1);
+    return ClassName.get(path, className);
+  }
+
+  public TypeName convertArrayToList(String arrayType) {
+    if (!arrayType.endsWith("[]")) {
+      throw new IllegalArgumentException("The type must be an array type ending with '[]'");
+    }
+
+    // Remove all array brackets and count dimensions
+    int dimensions = 0;
+    while (arrayType.endsWith("[]")) {
+      dimensions++;
+      arrayType = arrayType.substring(0, arrayType.length() - 2);
+    }
+
+    ClassName baseType = ClassName.bestGuess(arrayType);
+
+    TypeName result = baseType;
+    for (int i = 0; i < dimensions; i++) {
+      result = ParameterizedTypeName.get(ClassName.get("java.util", "List"), result);
+    }
+
+    return result;
   }
 }

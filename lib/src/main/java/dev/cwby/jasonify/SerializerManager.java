@@ -15,7 +15,8 @@ public class SerializerManager {
   private static final Map<String, IJsonDeserializer<?>> DESERIALIZER_MAP = new HashMap<>();
 
   // TODO: jsonGenerator Pool, Object pool for json values
-  // TODO: add new 2 Anontations, @JsonSerialize and @JsonDeserialize, @Json will be a wraper for
+  // TODO: add new 2 Anontations, @JsonSerialize and @JsonDeserialize, @Json will
+  // be a wraper for
   // the two as @Data in lombok for getters,setters
 
   static {
