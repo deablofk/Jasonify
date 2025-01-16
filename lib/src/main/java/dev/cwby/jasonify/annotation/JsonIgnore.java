@@ -7,4 +7,5 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.SOURCE)
-public @interface JsonIgnore {}
+public @interface JsonIgnore {
+}

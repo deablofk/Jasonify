@@ -7,4 +7,5 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.SOURCE)
-public @interface JsonSerialize {}
+public @interface JsonSerialize {
+}
