@@ -2,19 +2,23 @@ package dev.cwby.jasonify.reader;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Base64;
 
 public class JsonParser {
 
     // TODO: create a specific exception for throwing
 
+    private static final Base64.Decoder BASE64_DECODER = Base64.getDecoder();
     private final StringReader reader;
     private JsonToken currentToken;
     private String currentValue;
     private int lookahead = -1;
     private int pos = 0;
+    private final String json;
 
     public JsonParser(String json) {
-        this.reader = new StringReader(json.trim());
+        this.json = json.trim();
+        this.reader = new StringReader(this.json);
         this.currentToken = null;
         this.currentValue = null;
     }
@@ -54,8 +58,7 @@ public class JsonParser {
                 return nextToken();
             case '"':
                 currentValue = parseString();
-                currentToken =
-                        currentToken == JsonToken.FIELD_NAME ? JsonToken.VALUE_STRING : JsonToken.FIELD_NAME;
+                currentToken = currentToken == JsonToken.FIELD_NAME ? JsonToken.VALUE_STRING : JsonToken.FIELD_NAME;
                 break;
             case 'n':
                 parseLiteral("null");
@@ -91,10 +94,37 @@ public class JsonParser {
         }
     }
 
+    public int countArrayEntries() throws IOException {
+        if (currentToken != JsonToken.START_ARRAY) {
+            throw new IllegalStateException("skipChildren() can only be called on START_ARRAY");
+        }
+
+        // TODO: reuse the json parser
+        JsonParser parser = new JsonParser(json.substring(pos));
+        int depth = 1;
+        int count = 0;
+        while (depth > 0) {
+            JsonToken token = parser.nextToken();
+            if (token == null || token == JsonToken.END_DOCUMENT) {
+                throw new IllegalStateException("unexpected end of json while walking");
+            }
+
+            if (depth == 1 && (token == JsonToken.START_OBJECT || token == JsonToken.START_ARRAY)) {
+                count++;
+            }
+
+            if (token == JsonToken.START_OBJECT || token == JsonToken.START_ARRAY) {
+                depth++;
+            } else if (token == JsonToken.END_OBJECT || token == JsonToken.END_ARRAY) {
+                depth--;
+            }
+        }
+        return count;
+    }
+
     public void skipChildren(boolean debug) throws IOException {
         if (currentToken != JsonToken.START_OBJECT && currentToken != JsonToken.START_ARRAY) {
-            throw new IllegalStateException(
-                    "skipChildren() can only be called on START_OBJECT or START_ARRAY");
+            throw new IllegalStateException("skipChildren() can only be called on START_OBJECT or START_ARRAY");
         }
 
         StringBuilder debugBuffer = debug ? new StringBuilder("skiping: ") : null;
@@ -137,41 +167,6 @@ public class JsonParser {
             case NULL -> debugBuffer.append("null");
             case END_DOCUMENT -> debugBuffer.append("EOF");
         }
-    }
-
-    public int countEntries() throws IOException {
-        if (currentToken != JsonToken.START_OBJECT && currentToken != JsonToken.START_ARRAY) {
-            throw new IllegalStateException(
-                    "countEntries() can only be called on START_OBJECT or START_ARRAY");
-        }
-
-        String remainingJson = reader.toString().substring(pos);
-        JsonParser tempParser = new JsonParser(remainingJson);
-
-        int count = 0;
-        int depth = 1;
-
-        while (depth > 0) {
-            JsonToken token = tempParser.nextToken();
-            if (token == null || token == JsonToken.END_DOCUMENT) {
-                throw new IllegalStateException("Unexpected end of JSON while counting entries");
-            }
-
-            if (token == JsonToken.START_OBJECT || token == JsonToken.START_ARRAY) {
-                depth++;
-            } else if (token == JsonToken.END_OBJECT || token == JsonToken.END_ARRAY) {
-                depth--;
-            } else if (depth == 1
-                    && (token == JsonToken.FIELD_NAME
-                    || token == JsonToken.VALUE_STRING
-                    || token == JsonToken.VALUE_NUMBER
-                    || token == JsonToken.VALUE_BOOLEAN
-                    || token == JsonToken.NULL)) {
-                count++;
-            }
-        }
-
-        return count;
     }
 
     public String parseString() throws IOException {
@@ -235,6 +230,10 @@ public class JsonParser {
         }
     }
 
+    public byte[] decodeByteArray(String strBase64) {
+        return BASE64_DECODER.decode(strBase64);
+    }
+
     private void pushBack(int ch) {
         if (lookahead != -1) {
             throw new IllegalStateException("cant push multiple characters");
@@ -283,16 +282,6 @@ public class JsonParser {
 
     @Override
     public String toString() {
-        return "JsonParser{"
-                + "currentToken="
-                + currentToken
-                + ", currentValue='"
-                + currentValue
-                + '\''
-                + ", lookahead="
-                + lookahead
-                + ", pos="
-                + pos
-                + '}';
+        return "JsonParser{" + "currentToken=" + currentToken + ", currentValue='" + currentValue + '\'' + ", lookahead=" + lookahead + ", pos=" + pos + '}';
     }
 }

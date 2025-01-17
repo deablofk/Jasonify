@@ -81,7 +81,7 @@ public class SerializerCodeGenerator {
         builder.addStatement("$L.writeField($S)", generatorVar, field.getJsonName());
 
         if (field.isByteArray()) {
-            builder.add("$L.writeBase64String($L)", generatorVar, field.getCallable());
+            builder.addStatement("$L.writeBase64String($L.$L)", generatorVar, instanceName, field.getCallable());
         } else if (field.isList() || field.isArray()) {
             builder.add(generateArraySerialization(field));
         } else if (field.isMap()) {

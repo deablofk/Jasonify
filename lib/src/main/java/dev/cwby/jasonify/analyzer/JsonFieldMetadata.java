@@ -222,26 +222,34 @@ public class JsonFieldMetadata {
     }
 
     public String getDeserializationMethod() {
-        return switch (type.replace("[]", "")) {
+        String tmpType = type;
+        if (isMap()) {
+            tmpType = getMapValueType();
+        }
+        return switch (tmpType.replace("[]", "")) {
             case "java.lang.Character", "java.lang.String" -> "getCurrentValue";
             case "byte", "java.lang.Byte" -> "un";
             case "boolean", "java.lang.Boolean" -> "getCurrentValueBoolean";
             case "int", "java.lang.Integer" -> "getCurrentValueInteger";
             case "double", "java.lang.Double" -> "getCurrentValueDouble";
             case "float", "java.lang.Float" -> "getCurrentValueFloat";
-            default -> throw new IllegalStateException("Unexpected value: " + type);
+            default -> throw new IllegalStateException("Unexpected value: " + tmpType);
         };
     }
 
     public String getDeserializationToken() {
-        return switch (type.replace("[]", "")) {
+        String tmpType = type;
+        if (isMap()) {
+            tmpType = getMapValueType();
+        }
+        return switch (tmpType.replace("[]", "")) {
             case "java.lang.Character", "java.lang.String" -> "VALUE_STRING";
             case "byte", "java.lang.Byte" -> "VALUE_STRING";
             case "boolean", "java.lang.Boolean" -> "VALUE_BOOLEAN";
             case "int", "java.lang.Integer" -> "VALUE_NUMBER";
             case "double", "java.lang.Double" -> "VALUE_NUMBER";
             case "float", "java.lang.Float" -> "VALUE_NUMBER";
-            default -> throw new IllegalStateException("Unexpected value: " + type);
+            default -> throw new IllegalStateException("Unexpected value: " + tmpType);
         };
     }
 
@@ -355,5 +363,10 @@ public class JsonFieldMetadata {
         }
 
         return result;
+    }
+
+    public TypeName getBaseType() {
+        String type = getType().replaceAll("\\[]", "");
+        return getClassNameForType(type);
     }
 }
