@@ -7,6 +7,7 @@ import dev.cwby.jasonify.serializer.IJsonSerializer;
 import dev.cwby.jasonify.writer.JsonGenerator;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -14,6 +15,8 @@ public class SerializerManager {
 
     private static final Map<String, IJsonSerializer<?>> SERIALIZER_MAP = new HashMap<>();
     private static final Map<String, IJsonDeserializer<?>> DESERIALIZER_MAP = new HashMap<>();
+    public static final Base64.Decoder BASE64_DECODER = Base64.getDecoder();
+    public static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder();
 
     // TODO: jsonGenerator Pool, Object pool for json values
     // TODO: add new 2 Anontations, @JsonSerialize and @JsonDeserialize, @Json will

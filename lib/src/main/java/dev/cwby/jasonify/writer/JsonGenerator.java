@@ -1,9 +1,8 @@
 package dev.cwby.jasonify.writer;
 
-import java.util.Base64;
+import dev.cwby.jasonify.SerializerManager;
 
 public class JsonGenerator {
-    private static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder();
     private final FastStringBuilder appendable;
     private int depth = 0;
     private boolean isFirst = true;
@@ -102,7 +101,7 @@ public class JsonGenerator {
     }
 
     public JsonGenerator writeBase64String(byte[] bytes) {
-        return writeString(BASE64_ENCODER.encodeToString(bytes));
+        return writeString(SerializerManager.BASE64_ENCODER.encodeToString(bytes));
     }
 
     private void handleComma() {

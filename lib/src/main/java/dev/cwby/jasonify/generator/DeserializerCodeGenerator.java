@@ -49,7 +49,7 @@ public class DeserializerCodeGenerator {
     private CodeBlock generateDeserializationCode(JsonClassMetadata jcm) {
         var builder = CodeBlock.builder();
 
-        builder.beginControlFlow("while (parser.nextToken() != $T.END_OBJECT)", JsonToken.class);
+        builder.beginControlFlow("while (parser.nextToken() != $T.END_OBJECT && parser.getCurrentToken() != $T.END_DOCUMENT)", JsonToken.class, JsonToken.class);
         builder.beginControlFlow("if (parser.getCurrentValue() != null)");
         builder.beginControlFlow("switch (parser.getCurrentValue())");
 
@@ -62,7 +62,7 @@ public class DeserializerCodeGenerator {
         }
         builder.add("default:\n$>");
         builder.addStatement("parser.nextToken()");
-        builder.addStatement("parser.skipOrSkipChildren(true)");
+        builder.addStatement("parser.skipOrSkipChildren()");
         builder.add("break;$<\n");
 
         builder.endControlFlow();
@@ -113,7 +113,7 @@ public class DeserializerCodeGenerator {
             }
             builder.endControlFlow();
             builder.beginControlFlow("else");
-            builder.addStatement("parser.skipOrSkipChildren(true)");
+            builder.addStatement("parser.skipOrSkipChildren()");
             builder.endControlFlow();
         } else {
             builder.addStatement("list$L.add(parser.getCurrentValue())", depth - 1);
@@ -178,7 +178,7 @@ public class DeserializerCodeGenerator {
         }
         builder.endControlFlow();
         builder.beginControlFlow("else");
-        builder.addStatement("parser.skipOrSkipChildren(true)");
+        builder.addStatement("parser.skipOrSkipChildren()");
         builder.endControlFlow();
     }
 
@@ -194,28 +194,34 @@ public class DeserializerCodeGenerator {
             String type = field.getInnerMost();
             ClassName className = field.getClassNameForType(type);
 
+            // bosta
+            builder.beginControlFlow("if (parser.getCurrentToken() == JsonToken.FIELD_NAME)");
+            builder.addStatement("String key = parser.getCurrentValue()");
+            builder.addStatement("parser.nextToken()");
             builder.beginControlFlow("if (parser.getCurrentToken() == JsonToken.START_OBJECT)");
-            builder.addStatement("list$L.add($T.fromJson(parser, $T.class))", depth - 1, SerializerManager.class, className);
+            builder.addStatement("map$L.put(key, $T.fromJson(parser, $T.class))", depth - 1, SerializerManager.class, className);
+            builder.endControlFlow();
+            builder.beginControlFlow("else if (parser.getCurrentToken() == JsonToken.START_OBJECT || parser.getCurrentToken() == JsonToken.START_ARRAY)");
+            builder.addStatement("parser.skipOrSkipChildren()");
+            builder.endControlFlow();
             builder.endControlFlow();
             builder.beginControlFlow("else");
-            builder.addStatement("parser.skipOrSkipChildren(true)");
+            builder.addStatement("parser.skipOrSkipChildren()");
             builder.endControlFlow();
         } else {
             // bosta
             builder.beginControlFlow("if (parser.getCurrentToken() == JsonToken.FIELD_NAME)");
             builder.addStatement("String key = parser.getCurrentValue()");
-            builder.addStatement("System.out.println(parser)");
             builder.addStatement("parser.nextToken()");
-            builder.addStatement("System.out.println(parser)");
             builder.beginControlFlow("if (parser.getCurrentToken() == JsonToken.$L)", field.getDeserializationToken());
             builder.addStatement("map$L.put(key, parser.$L())", depth - 1, field.getDeserializationMethod());
             builder.endControlFlow();
             builder.beginControlFlow("else if (parser.getCurrentToken() == JsonToken.START_OBJECT || parser.getCurrentToken() == JsonToken.START_ARRAY)");
-            builder.addStatement("parser.skipOrSkipChildren(true)");
+            builder.addStatement("parser.skipOrSkipChildren()");
             builder.endControlFlow();
             builder.endControlFlow();
             builder.beginControlFlow("else");
-            builder.addStatement("parser.skipOrSkipChildren(true)");
+            builder.addStatement("parser.skipOrSkipChildren()");
             builder.endControlFlow();
         }
 
@@ -234,7 +240,7 @@ public class DeserializerCodeGenerator {
         TypeName className = field.getClassnameWithGenerics(type);
         builder.beginControlFlow("if (parser.getCurrentToken() == JsonToken.$L)", JsonToken.START_OBJECT);
         builder.addStatement("$T map$L = new $T<>()", className, currentDepth, LinkedHashMap.class);
-        builder.beginControlFlow("while (parser.nextToken() != JsonToken.$L)", JsonToken.END_OBJECT);
+        builder.beginControlFlow("while (parser.nextToken() != JsonToken.$L && parser.getCurrentToken() != JsonToken.$L)", JsonToken.END_OBJECT, JsonToken.END_DOCUMENT);
 
         if (currentDepth + 1 < depth) {
             generateMapNestedLoops(builder, callable, innerBlock, field, depth, currentDepth + 1);
@@ -250,7 +256,7 @@ public class DeserializerCodeGenerator {
         }
         builder.endControlFlow();
         builder.beginControlFlow("else");
-        builder.addStatement("parser.skipOrSkipChildren(true)");
+        builder.addStatement("parser.skipOrSkipChildren()");
         builder.endControlFlow();
     }
 }
